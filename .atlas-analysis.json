@@ -1,0 +1,154 @@
+{
+  "projectType": "api-service",
+  "projectName": "Cross-Media Measurement API",
+  "projectDescription": "gRPC API for privacy-preserving cross-media measurement and audience analytics using multi-party computation.",
+  "theme": "aspen",
+  "primaryColor": "#688782",
+  "lightColor": "#346861",
+  "darkColor": "#c5d3d1",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "concepts"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/resource-model",
+              "concepts/measurements",
+              "concepts/multi-party-computation",
+              "concepts/differential-privacy",
+              "concepts/event-groups"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/authentication",
+              "guides/certificates",
+              "guides/measurement-consumer-setup",
+              "guides/creating-measurements",
+              "guides/panel-matching",
+              "guides/requisitions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Identity & Access",
+            "pages": [
+              "api/accounts",
+              "api/api-keys",
+              "api/certificates",
+              "api/public-keys"
+            ]
+          },
+          {
+            "group": "Measurement Resources",
+            "pages": [
+              "api/measurements",
+              "api/measurement-consumers",
+              "api/data-providers",
+              "api/requisitions"
+            ]
+          },
+          {
+            "group": "Event Management",
+            "pages": [
+              "api/event-groups",
+              "api/event-group-metadata-descriptors"
+            ]
+          },
+          {
+            "group": "Model Management",
+            "pages": [
+              "api/model-providers",
+              "api/model-suites",
+              "api/model-releases",
+              "api/model-lines",
+              "api/model-shards",
+              "api/model-rollouts",
+              "api/model-outages"
+            ]
+          },
+          {
+            "group": "Panel Matching",
+            "pages": [
+              "api/exchanges",
+              "api/exchange-steps",
+              "api/exchange-workflows",
+              "api/recurring-exchanges"
+            ]
+          },
+          {
+            "group": "Populations",
+            "pages": [
+              "api/populations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Privacy-preserving cross-media measurement using multi-party computation",
+    "gRPC-based resource-oriented API with Protocol Buffers",
+    "Support for reach, frequency, and impression measurements",
+    "Differential privacy controls for measurement results",
+    "Panel matching for audience overlap analysis",
+    "Event group management with metadata descriptors",
+    "Model lifecycle management (providers, suites, releases, rollouts)",
+    "Certificate-based authentication and digital signatures",
+    "Requisition fulfillment workflow for data providers"
+  ],
+  "publicApiSurface": [
+    "Measurements.CreateMeasurement",
+    "Measurements.GetMeasurement",
+    "Measurements.ListMeasurements",
+    "Measurements.CancelMeasurement",
+    "MeasurementConsumers.CreateMeasurementConsumer",
+    "MeasurementConsumers.GetMeasurementConsumer",
+    "DataProviders.GetDataProvider",
+    "DataProviders.ListDataProviders",
+    "EventGroups.CreateEventGroup",
+    "EventGroups.GetEventGroup",
+    "EventGroups.ListEventGroups",
+    "EventGroups.UpdateEventGroup",
+    "Requisitions.ListRequisitions",
+    "Requisitions.RefuseRequisition",
+    "RequisitionFulfillment.FulfillRequisition",
+    "Certificates.CreateCertificate",
+    "Certificates.GetCertificate",
+    "Certificates.RevokeCertificate",
+    "ApiKeys.CreateApiKey",
+    "ApiKeys.DeleteApiKey",
+    "Accounts.CreateAccount",
+    "Accounts.UpdateAccount",
+    "PublicKeys.UpdatePublicKey",
+    "Exchanges.CreateExchange",
+    "Exchanges.GetExchange",
+    "ModelProviders.CreateModelProvider",
+    "ModelProviders.GetModelProvider",
+    "ModelSuites.CreateModelSuite",
+    "ModelReleases.CreateModelRelease",
+    "Populations.CreatePopulation",
+    "Populations.ListPopulations"
+  ]
+}
