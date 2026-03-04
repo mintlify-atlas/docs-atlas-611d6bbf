@@ -1,0 +1,489 @@
+---
+title: "Measurements API"
+description: "Complete API reference for the Measurements service"
+---
+
+The Measurements service provides methods for creating and managing measurement requests across data providers.
+
+## Resource
+
+### Measurement
+
+A measurement from a set of `DataProvider`s requested by a `MeasurementConsumer`.
+
+**Resource name pattern:** `measurementConsumers/{measurement_consumer}/measurements/{measurement}`
+
+<ResponseField name="name" type="string" required>
+  Resource name identifier.
+</ResponseField>
+
+<ResponseField name="measurement_consumer_certificate" type="string" required>
+  Resource name of the `Certificate` belonging to the parent `MeasurementConsumer`.
+</ResponseField>
+
+<ResponseField name="measurement_spec" type="SignedMessage" required>
+  Serialized `MeasurementSpec` for requisitions, which can be verified using `measurement_consumer_certificate`.
+  
+  The version of the `MeasurementSpec` message type must correspond to the API version that this resource was created in.
+</ResponseField>
+
+<ResponseField name="data_providers" type="DataProviderEntry[]" required>
+  Map of `DataProvider` name to parameters for that `DataProvider`.
+</ResponseField>
+
+<ResponseField name="protocol_config" type="ProtocolConfig">
+  The `ProtocolConfig` selected for this measurement according to the `measurement_spec`. Output only.
+</ResponseField>
+
+<ResponseField name="state" type="State">
+  State of this `Measurement`. Output only.
+  
+  Possible values:
+  - `STATE_UNSPECIFIED` - Default value used if the state is omitted
+  - `AWAITING_REQUISITION_FULFILLMENT` - Waiting for all linked `Requisition`s to be fulfilled
+  - `COMPUTING` - Computation is running
+  - `SUCCEEDED` - Completed successfully (terminal state)
+  - `FAILED` - Completed with failure (terminal state)
+  - `CANCELLED` - Cancelled by Measurement Consumer (terminal state)
+</ResponseField>
+
+<ResponseField name="results" type="ResultOutput[]">
+  Results of this `Measurement`. Only set if `state` is `SUCCEEDED`. Output only.
+</ResponseField>
+
+<ResponseField name="measurement_reference_id" type="string">
+  ID referencing the `Measurement` in an external system, provided by the `MeasurementConsumer`.
+</ResponseField>
+
+<ResponseField name="failure" type="Failure">
+  Information about the failure of this `Measurement`. Set when the `state` is set to `FAILED`. Output only.
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp">
+  When the `Measurement` was created. Output only.
+</ResponseField>
+
+<ResponseField name="update_time" type="Timestamp">
+  When the `Measurement` was last updated. Output only.
+</ResponseField>
+
+### DataProviderEntry
+
+Entry for `data_providers` map.
+
+<ResponseField name="key" type="string" required>
+  Key of the map entry, which is a `DataProvider` resource name.
+</ResponseField>
+
+<ResponseField name="value" type="Value" required>
+  Value of the map entry.
+  
+  <Expandable title="Value fields">
+    <ResponseField name="data_provider_certificate" type="string" required>
+      Resource name of the `Certificate` belonging to `data_provider`.
+    </ResponseField>
+    
+    <ResponseField name="data_provider_public_key" type="Any" required>
+      Pre-shared packed `EncryptionPublicKey`. The version of the `EncryptionPublicKey` message type must correspond to the API version that this resource was created in.
+    </ResponseField>
+    
+    <ResponseField name="encrypted_requisition_spec" type="EncryptedMessage" required>
+      Encrypted `SignedMessage` containing the serialized `RequisitionSpec` for this entry, which can be verified using `measurement_consumer_certificate`. The encryption uses `data_provider_public_key` as the recipient public key.
+    </ResponseField>
+    
+    <ResponseField name="nonce_hash" type="bytes" required>
+      SHA256 hash of the `nonce` from `encrypted_requisition_spec`, where the nonce value has big-endian byte ordering.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Result
+
+The result of a `Measurement`.
+
+<ResponseField name="reach" type="Reach">
+  The reach result.
+  
+  <Expandable title="Reach fields">
+    <ResponseField name="value" type="int64">
+      Number of unique users (VIDs) for which there are impression events. This must be non-negative, meaning any negative value arising due to noise must be clamped to 0.
+    </ResponseField>
+    
+    <ResponseField name="noise_mechanism" type="NoiseMechanism">
+      The mechanism used to generate noise during computation.
+    </ResponseField>
+    
+    <ResponseField name="methodology" type="oneof">
+      The computation methodology. Required. One of: `custom_direct_methodology`, `deterministic_count_distinct`, `liquid_legions_count_distinct`, `liquid_legions_v2`, `reach_only_liquid_legions_v2`, `honest_majority_share_shuffle`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="frequency" type="Frequency">
+  The frequency result.
+  
+  <Expandable title="Frequency fields">
+    <ResponseField name="relative_frequency_distribution" type="map<int64, double>">
+      Map of frequency to reach ratio. Values must be non-negative, meaning any negative value arising due to noise must be clamped to 0.
+    </ResponseField>
+    
+    <ResponseField name="noise_mechanism" type="NoiseMechanism">
+      The mechanism used to generate noise during computation.
+    </ResponseField>
+    
+    <ResponseField name="methodology" type="oneof">
+      The computation methodology. Required. One of: `custom_direct_methodology`, `deterministic_distribution`, `liquid_legions_distribution`, `liquid_legions_v2`, `honest_majority_share_shuffle`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="impression" type="Impression">
+  The impression result.
+  
+  <Expandable title="Impression fields">
+    <ResponseField name="value" type="int64">
+      Number of impression events. This must be non-negative, meaning any negative value arising due to noise must be clamped to 0.
+    </ResponseField>
+    
+    <ResponseField name="noise_mechanism" type="NoiseMechanism">
+      The mechanism used to generate noise during computation.
+    </ResponseField>
+    
+    <ResponseField name="methodology" type="oneof">
+      The computation methodology done by data provider. Required. One of: `custom_direct_methodology`, `deterministic_count`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="watch_duration" type="WatchDuration">
+  The watch duration result.
+  
+  <Expandable title="WatchDuration fields">
+    <ResponseField name="value" type="Duration">
+      Total duration. This must be non-negative, meaning any negative value arising due to noise must be clamped to 0.
+    </ResponseField>
+    
+    <ResponseField name="noise_mechanism" type="NoiseMechanism">
+      The mechanism used to generate noise during computation.
+    </ResponseField>
+    
+    <ResponseField name="methodology" type="oneof">
+      The computation methodology done by data provider. Required. One of: `custom_direct_methodology`, `deterministic_sum`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="population" type="Population">
+  The population result.
+  
+  <Expandable title="Population fields">
+    <ResponseField name="value" type="int64">
+      The population value. This must be non-negative.
+    </ResponseField>
+    
+    <ResponseField name="methodology" type="oneof">
+      The computation methodology done by data provider. Required. One of: `deterministic_count`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Failure
+
+Information about a failure.
+
+<ResponseField name="reason" type="Reason" required>
+  Reason for this `Failure`.
+  
+  Possible values:
+  - `REASON_UNSPECIFIED` - Default value used if the reason is omitted
+  - `CERTIFICATE_REVOKED` - An associated certificate was revoked
+  - `REQUISITION_REFUSED` - Requisition state was set to REFUSED
+  - `COMPUTATION_PARTICIPANT_FAILED` - ComputationParticipant state was set to FAILED
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable message. This should not contain any sensitive information.
+</ResponseField>
+
+## Methods
+
+### GetMeasurement
+
+Returns the `Measurement` with the specified resource key.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the Measurement.
+  
+  Format: `measurementConsumers/{measurement_consumer}/measurements/{measurement}`
+</ParamField>
+
+**Response**
+
+Returns a `Measurement` resource.
+
+**Example**
+
+```proto
+message GetMeasurementRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+---
+
+### CreateMeasurement
+
+Creates (registers) a `Measurement`.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="measurement" type="Measurement" required>
+  The `Measurement` to create. The `name` field will be ignored, and the system will assign an ID.
+</ParamField>
+
+<ParamField body="request_id" type="string">
+  Unique identifier for this request. If specified, the request will be idempotent. See https://google.aip.dev/155.
+</ParamField>
+
+**Response**
+
+Returns the created `Measurement` resource.
+
+**Example**
+
+```proto
+message CreateMeasurementRequest {
+  string parent = 3 [(google.api.field_behavior) = REQUIRED];
+  Measurement measurement = 1 [(google.api.field_behavior) = REQUIRED];
+  string request_id = 2;
+}
+```
+
+---
+
+### ListMeasurements
+
+Lists `Measurement`s for the parent `MeasurementConsumer`.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of `Measurement`s to return. The service may return fewer than this value.
+  
+  If unspecified, at most 50 `Measurement`s will be returned. The maximum value is 1000; values above 1000 will be coerced to 1000.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token, received from a previous `ListMeasurementsRequest` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters provided to `ListMeasurementsRequest` must match the call that provided the page token.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Filter criteria. Repeated fields are treated as logical ORs, and multiple fields specified as logical ANDs.
+  
+  <Expandable title="Filter fields">
+    <ParamField name="states" type="State[]">
+      Matches against the `state` field.
+    </ParamField>
+    
+    <ParamField name="updated_after" type="Timestamp">
+      Filter for measurements that are updated after a certain timestamp.
+    </ParamField>
+    
+    <ParamField name="updated_before" type="Timestamp">
+      Filter for measurements that are updated before a certain timestamp.
+    </ParamField>
+    
+    <ParamField name="created_before" type="Timestamp">
+      Filter for measurements that are created before a certain timestamp.
+    </ParamField>
+    
+    <ParamField name="created_after" type="Timestamp">
+      Filter for measurements that are created after a certain timestamp.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response**
+
+<ResponseField name="measurements" type="Measurement[]">
+  List of `Measurement`s that has all of the tags in the ListMeasurementsRequest.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token, which can be sent as `page_token` to retrieve the next page. If this field is omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example**
+
+```proto
+message ListMeasurementsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+  Filter filter = 4;
+}
+
+message ListMeasurementsResponse {
+  repeated Measurement measurements = 1;
+  string next_page_token = 2;
+}
+```
+
+---
+
+### CancelMeasurement
+
+Transitions a `Measurement` to the `CANCELLED` state. This is a terminal state for the `Measurement`.
+
+This is a state transition method (see https://aip.dev/216).
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the `Measurement` to mark as `CANCELLED`.
+  
+  Format: `measurementConsumers/{measurement_consumer}/measurements/{measurement}`
+</ParamField>
+
+**Response**
+
+Returns the updated `Measurement` resource with state set to `CANCELLED`.
+
+**Example**
+
+```proto
+message CancelMeasurementRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+---
+
+### BatchCreateMeasurements
+
+Batch creates `Measurement`s. Results in an error if any of the specified `Measurement`s fail to be created.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="requests" type="CreateMeasurementRequest[]" required>
+  The requests specifying the `Measurement`s to create. Either all requests must have the same parent and the parent must match the top-level parent, or all requests must leave the parent unset.
+  
+  A maximum of 50 `Measurement`s can be created in a single batch.
+</ParamField>
+
+**Response**
+
+<ResponseField name="measurements" type="Measurement[]">
+  The `Measurement` resources.
+</ResponseField>
+
+**Example**
+
+```proto
+message BatchCreateMeasurementsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated CreateMeasurementRequest requests = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message BatchCreateMeasurementsResponse {
+  repeated Measurement measurements = 1;
+}
+```
+
+---
+
+### BatchGetMeasurements
+
+Batch gets `Measurement`s. Results in a `NOT_FOUND` error if any of the specified `Measurement`s do not exist.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="names" type="string[]" required>
+  List of resource names. A maximum of 50 `Measurement`s can be retrieved in a single batch.
+</ParamField>
+
+**Response**
+
+<ResponseField name="measurements" type="Measurement[]">
+  The `Measurement` resources.
+</ResponseField>
+
+**Example**
+
+```proto
+message BatchGetMeasurementsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated string names = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message BatchGetMeasurementsResponse {
+  repeated Measurement measurements = 1;
+}
+```
+
+## State Transitions
+
+Measurements follow a specific state transition workflow:
+
+```
+  [Created]
+      |
+      v
+AWAITING_REQUISITION_FULFILLMENT
+      |
+      +---> CANCELLED (terminal)
+      |
+      v
+  COMPUTING
+      |
+      +---> FAILED (terminal)
+      +---> CANCELLED (terminal)
+      |
+      v
+  SUCCEEDED (terminal)
+```
+
+### State Descriptions
+
+- **AWAITING_REQUISITION_FULFILLMENT**: The measurement is waiting for all linked requisitions to be fulfilled by data providers.
+- **COMPUTING**: All requisitions have been fulfilled and the computation is running.
+- **SUCCEEDED**: The measurement completed successfully and results are available.
+- **FAILED**: The measurement failed due to an error (e.g., certificate revoked, requisition refused, computation participant failed).
+- **CANCELLED**: The measurement was cancelled by the measurement consumer.
+
+## Workflow
+
+1. **Create Measurement**: A MeasurementConsumer creates a measurement specifying the data providers and measurement specifications.
+2. **Requisition Creation**: The system automatically creates requisitions for each data provider.
+3. **Await Fulfillment**: The measurement enters `AWAITING_REQUISITION_FULFILLMENT` state while waiting for data providers.
+4. **Data Collection**: Data providers fulfill requisitions by providing the requested data.
+5. **Computation**: Once all requisitions are fulfilled, the measurement transitions to `COMPUTING` state.
+6. **Result**: The measurement transitions to either `SUCCEEDED` with results or `FAILED` with failure information.

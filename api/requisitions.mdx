@@ -1,0 +1,462 @@
+---
+title: "Requisitions API"
+description: "Complete API reference for the Requisitions service"
+---
+
+The Requisitions service provides methods for managing requisition resources, which represent data collection requests to data providers.
+
+## Resource
+
+### Requisition
+
+A requisition for data across `EventGroup`s from a single `DataProvider`. Output-only.
+
+A `Requisition` is created on behalf of a `MeasurementConsumer` to instruct a `DataProvider` to collect and upload data necessary to compute a `Measurement` result.
+
+**Resource name patterns:**
+- `dataProviders/{data_provider}/requisitions/{requisition}` (canonical)
+- `measurementConsumers/{measurement_consumer}/measurements/{measurement}/requisitions/{requisition}`
+
+<ResponseField name="name" type="string" required>
+  Resource name identifier.
+</ResponseField>
+
+<ResponseField name="measurement" type="string" required>
+  Resource name of `Measurement` that this `Requisition` is associated with. Required, immutable.
+</ResponseField>
+
+<ResponseField name="measurement_consumer_certificate" type="string">
+  Denormalized dereferenced `measurement_consumer_certificate` field from `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="measurement_spec" type="SignedMessage">
+  Denormalized `measurement_spec` field from `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="protocol_config" type="ProtocolConfig">
+  Denormalized `protocol_config` field from `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="data_provider_certificate" type="string">
+  Denormalized `data_provider_certificate` field from the corresponding `DataProviderEntry` in `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="data_provider_public_key" type="Any">
+  Denormalized `data_provider_public_key` field from the corresponding `DataProviderEntry` in `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="encrypted_requisition_spec" type="EncryptedMessage">
+  Denormalized `encrypted_requisition_spec` field from the corresponding `DataProviderEntry` in `measurement`. Output only, immutable.
+</ResponseField>
+
+<ResponseField name="duchies" type="DuchyEntry[]">
+  Map of `Duchy` name to parameters for that `Duchy`. Immutable.
+</ResponseField>
+
+<ResponseField name="state" type="State">
+  The state of this `Requisition`. Output only.
+  
+  Possible values:
+  - `STATE_UNSPECIFIED` - Default value if state is omitted. Should never be used.
+  - `UNFULFILLED` - The `Requisition` has not yet been fulfilled
+  - `FULFILLED` - The `Requisition` has been fulfilled (terminal state)
+  - `REFUSED` - The `Requisition` has been refused by the `DataProvider` (terminal state, causes measurement to fail)
+  - `WITHDRAWN` - The `Requisition` has been withdrawn (terminal state)
+</ResponseField>
+
+<ResponseField name="nonce" type="fixed64">
+  The `nonce` value from `encrypted_requisition_spec`. Output only. Set when `state` is `FULFILLED`.
+</ResponseField>
+
+<ResponseField name="refusal" type="Refusal">
+  The refusal that put this `Requisition` into the `REFUSED` state. Must be set when `state` is `REFUSED`.
+</ResponseField>
+
+<ResponseField name="fulfillment_context" type="FulfillmentContext">
+  Context information related to the fulfillment of the `Requisition`. May only be set when `state` is `FULFILLED`.
+</ResponseField>
+
+<ResponseField name="measurement_state" type="Measurement.State">
+  Denormalized `state` field from `measurement`. Output only.
+</ResponseField>
+
+<ResponseField name="update_time" type="Timestamp">
+  When the `Requisition` was last updated. Output only.
+</ResponseField>
+
+<ResponseField name="etag" type="string">
+  Current etag of the `Requisition`. Output only.
+</ResponseField>
+
+### DuchyEntry
+
+Entry in the `duchies` map.
+
+<ResponseField name="key" type="string" required>
+  Key of the map entry, which is a `Duchy` resource name.
+</ResponseField>
+
+<ResponseField name="value" type="Value" required>
+  Value of a map entry.
+  
+  <Expandable title="Value fields">
+    <ResponseField name="duchy_certificate" type="string" required>
+      Resource name of the `Certificate` belonging to the `Duchy`. This certificate can be used to verify signatures in `protocol`.
+    </ResponseField>
+    
+    <ResponseField name="protocol" type="oneof" required>
+      Protocol-specific information for the `Duchy`. One of:
+      - `liquid_legions_v2`: Information for the Liquid Legions v2 protocol
+      - `reach_only_liquid_legions_v2`: Information for the Reach-Only Liquid Legions v2 protocol
+      - `honest_majority_share_shuffle`: Information for the Honest Majority Share Shuffle protocol
+      - `trus_tee`: Information for the TrusTEE protocol
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Refusal
+
+Refusal of a `Requisition`.
+
+<ResponseField name="justification" type="Justification" required>
+  Justification for refusing to fulfill this `Requisition`.
+  
+  Possible values:
+  - `JUSTIFICATION_UNSPECIFIED` - Default value. Should never be used.
+  - `CONSENT_SIGNAL_INVALID` - At least one cryptographic consent signal (digital signature or encrypted value) is invalid
+  - `SPEC_INVALID` - The specification/configuration for the `Requisition` is invalid
+  - `INSUFFICIENT_PRIVACY_BUDGET` - There is insufficient remaining privacy budget to fulfill the `Requisition`
+  - `UNFULFILLABLE` - The `Requisition` cannot be fulfilled for a reason not indicated by another justification
+  - `DECLINED` - The `DataProvider` has declined to fulfill this `Requisition`
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable string adding more context to the provided `Justification`. This should NOT include sensitive information.
+  
+  Example: "Data Provider X does not support Virtual ID model line Y".
+</ResponseField>
+
+### FulfillmentContext
+
+Context information related to the fulfillment of a `Requisition`.
+
+<ResponseField name="build_label" type="string">
+  Build label from the fulfilling `DataProvider`.
+</ResponseField>
+
+<ResponseField name="warnings" type="string[]">
+  Human-readable warnings about the fulfillment. This must not include sensitive data.
+</ResponseField>
+
+## Methods
+
+### ListRequisitions
+
+Returns the `Requisition`s for the specified `EventGroup`.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource key of the parent `DataProvider` or `Measurement`.
+  
+  Results in a `PERMISSION_DENIED` error if any key segment does not match for the authenticated user.
+  
+  Formats:
+  - `dataProviders/{data_provider}`
+  - `measurementConsumers/{measurement_consumer}/measurements/{measurement}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of resources to return. The service may return fewer than this value.
+  
+  If unspecified, at most 10 resources will be returned. The maximum value is 500; values above this will be coerced to the maximum.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A token from a previous call, specified to retrieve the next page. See https://aip.dev/158.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Filter criteria. Repeated fields are treated as logical ORs, and multiple fields specified as logical ANDs.
+  
+  <Expandable title="Filter fields">
+    <ParamField name="states" type="State[]">
+      Matches against the `state` field.
+    </ParamField>
+    
+    <ParamField name="measurement_states" type="Measurement.State[]" deprecated>
+      Matches against the `measurement_state` field. This field is no longer supported. In some cases, it may be an error to set it.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response**
+
+<ResponseField name="requisitions" type="Requisition[]">
+  The `Requisition` resources.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be specified in a subsequent call to retrieve the next page. See https://aip.dev/158.
+</ResponseField>
+
+**Example**
+
+```proto
+message ListRequisitionsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+  Filter filter = 4;
+}
+
+message ListRequisitionsResponse {
+  repeated Requisition requisitions = 1;
+  string next_page_token = 2;
+}
+```
+
+---
+
+### GetRequisition
+
+Returns the `Requisition` with the specified resource key.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the Requisition.
+  
+  Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+</ParamField>
+
+**Response**
+
+Returns a `Requisition` resource.
+
+**Example**
+
+```proto
+message GetRequisitionRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+---
+
+### RefuseRequisition
+
+Transitions a `Requisition` to the `REFUSED` state.
+
+This is a terminal state for the `Requisition`, resulting in the permanent failure of the parent `Measurement`. Consequently, this should only be called for permanent failures and not transient errors.
+
+This is a state transition method (https://aip.dev/216).
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the `Requisition` to mark as `UNFILLABLE`.
+  
+  Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+</ParamField>
+
+<ParamField body="refusal" type="Refusal" required>
+  Details about the refusal.
+  
+  <Expandable title="Refusal fields">
+    <ParamField name="justification" type="Justification" required>
+      Justification for refusing to fulfill this `Requisition`.
+    </ParamField>
+    
+    <ParamField name="message" type="string">
+      Human-readable string adding more context. Should NOT include sensitive information.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="etag" type="string">
+  Etag of the requisition. If specified and the value does not match the current etag, the operation will not occur and will result in an `ABORTED` status.
+</ParamField>
+
+**Response**
+
+Returns the updated `Requisition` resource with state set to `REFUSED`.
+
+**Example**
+
+```proto
+message RefuseRequisitionRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  Requisition.Refusal refusal = 2 [(google.api.field_behavior) = REQUIRED];
+  string etag = 3;
+}
+```
+
+**Important Notes**
+
+- Refusing a requisition causes the parent measurement to fail permanently.
+- Only use for permanent failures (e.g., invalid spec, insufficient privacy budget).
+- For transient errors, retry instead of refusing.
+- The etag parameter provides optimistic concurrency control.
+
+---
+
+### FulfillDirectRequisition
+
+Fulfills a `Requisition` using the `Direct` protocol.
+
+This may only be called if `Requisition.protocol_config` indicates that the protocol may be used. See the `RequisitionFulfillment` service to fulfill using a different protocol.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the `Requisition`.
+  
+  Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+</ParamField>
+
+<ParamField body="encrypted_result" type="EncryptedMessage" required>
+  Encrypted `SignedMessage` containing a `Measurement.Result`.
+  
+  The encryption uses the `measurement_public_key` from `measurement_spec` as the recipient's public key.
+  
+  The versions of the `SignedMessage` and `Measurement.Result` message types must match the API version of this request message.
+</ParamField>
+
+<ParamField body="nonce" type="fixed64" required>
+  The `nonce` value from the `encrypted_requisition_spec`.
+</ParamField>
+
+<ParamField body="certificate" type="string">
+  Resource name of the `Certificate` belonging to the `DataProvider` that can be used to verify the result.
+  
+  If unspecified, the `data_provider_certificate` from the `Requisition` will be used.
+</ParamField>
+
+<ParamField body="fulfillment_context" type="FulfillmentContext">
+  Context information related to the fulfillment of the `Requisition`.
+  
+  <Expandable title="FulfillmentContext fields">
+    <ParamField name="build_label" type="string">
+      Build label from the fulfilling DataProvider.
+    </ParamField>
+    
+    <ParamField name="warnings" type="string[]">
+      Human-readable warnings about the fulfillment.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="etag" type="string">
+  Etag of the requisition. If specified and the value does not match the current etag, the operation will not occur and will result in an `ABORTED` status.
+</ParamField>
+
+**Response**
+
+<ResponseField name="state" type="Requisition.State">
+  Resulting state of the `Requisition`. Output only.
+</ResponseField>
+
+**Example**
+
+```proto
+message FulfillDirectRequisitionRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  EncryptedMessage encrypted_result = 4;
+  fixed64 nonce = 3 [(google.api.field_behavior) = REQUIRED];
+  string certificate = 5;
+  Requisition.FulfillmentContext fulfillment_context = 6;
+  string etag = 7;
+}
+
+message FulfillDirectRequisitionResponse {
+  Requisition.State state = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+```
+
+**Usage Notes**
+
+- The Direct protocol is used for simple, direct data provision.
+- The result must be encrypted with the measurement consumer's public key.
+- The nonce must match the one from the encrypted requisition spec.
+- The etag parameter provides optimistic concurrency control.
+
+## State Transitions
+
+Requisitions follow this state transition workflow:
+
+```
+  [Created]
+      |
+      v
+  UNFULFILLED
+      |
+      +---> FULFILLED (terminal)
+      +---> REFUSED (terminal)
+      +---> WITHDRAWN (terminal)
+```
+
+### State Descriptions
+
+- **UNFULFILLED**: The requisition has been created but not yet fulfilled by the data provider.
+- **FULFILLED**: The data provider has successfully fulfilled the requisition by providing the requested data.
+- **REFUSED**: The data provider refused to fulfill the requisition (causes measurement to fail).
+- **WITHDRAWN**: The requisition was withdrawn (e.g., measurement was cancelled).
+
+## Refusal Justifications
+
+### CONSENT_SIGNAL_INVALID
+
+Use when:
+- A digital signature cannot be verified using the specified certificate
+- An encrypted value cannot be decrypted using the specified key
+- Cryptographic validation fails
+
+### SPEC_INVALID
+
+Use when:
+- The encrypted requisition spec contains invalid data
+- The time interval is invalid (e.g., end_time before start_time)
+- Configuration is not supported by the DataProvider
+
+### INSUFFICIENT_PRIVACY_BUDGET
+
+Use when:
+- The requisition would exceed available privacy budget
+- Differential privacy constraints prevent fulfillment
+- Privacy parameters are exhausted
+
+### UNFULFILLABLE
+
+Use when:
+- Data corruption prevents fulfillment
+- Internal DataProvider failure occurs
+- The requisition should be fulfillable but cannot be for technical reasons
+
+### DECLINED
+
+Use when:
+- DataProvider policy prevents fulfillment
+- Business reasons prevent fulfillment
+- Reasons not expressible through other justifications
+
+## Workflow
+
+### DataProvider Perspective
+
+1. **List Requisitions**: Poll for new UNFULFILLED requisitions using `ListRequisitions`.
+2. **Decrypt Spec**: Decrypt the `encrypted_requisition_spec` using your private key.
+3. **Validate Request**: Check signatures, validate spec, check privacy budget.
+4. **Collect Data**: Gather the requested data from your EventGroups.
+5. **Compute Result**: Calculate the measurement result according to the spec.
+6. **Encrypt Result**: Encrypt the result using the measurement consumer's public key.
+7. **Fulfill or Refuse**:
+   - Success: Call `FulfillDirectRequisition` with the encrypted result
+   - Failure: Call `RefuseRequisition` with appropriate justification
+
+### MeasurementConsumer Perspective
+
+1. **Create Measurement**: Creating a measurement automatically creates requisitions.
+2. **Monitor Progress**: Poll measurement state or list requisitions to track fulfillment.
+3. **Handle Failures**: If a requisition is refused, the measurement will fail with details.
+4. **Retrieve Results**: When all requisitions are fulfilled and computation completes, decrypt results.

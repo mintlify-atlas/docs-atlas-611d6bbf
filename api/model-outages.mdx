@@ -1,0 +1,161 @@
+---
+title: Model Outages API
+description: API reference for managing Model Outage resources
+---
+
+The Model Outages API allows you to create, list, and delete model outages. A model outage represents an outage of a model line.
+
+## Resource
+
+### ModelOutage
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelOutages/{model_outage}`
+</ResponseField>
+
+<ResponseField name="outage_interval" type="Interval" required>
+  Time interval in which the parent ModelLine cannot be used to generate sketches.
+  
+  If a report spans across one or more ModelOutages, the whole report must be generated using the parent ModelLine's `holdback_model_line`.
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="state" type="State" output>
+  State of this ModelOutage.
+  
+  **Enum values:**
+  - `STATE_UNSPECIFIED`: Default value, should never be used
+  - `ACTIVE`: The ModelOutage has been created
+  - `DELETED`: The ModelOutage has been deleted (terminal state). ModelOutages with state equal to DELETED must not be considered to determine what ModelLine must be used to generate reports
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelOutage was created
+</ResponseField>
+
+<ResponseField name="delete_time" type="Timestamp" output>
+  When the ModelOutage was deleted
+</ResponseField>
+
+## Methods
+
+### CreateModelOutage
+
+Creates a new `ModelOutage`. A ModelOutage can be created only for a ModelLine with type equal to `PROD`. Furthermore, the `ModelLine.holdback_model_line` needs to be already specified.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField body="model_outage" type="ModelOutage" required>
+  The ModelOutage to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `outage_interval`: Time interval for the outage
+</ParamField>
+
+**Response**
+
+Returns the created `ModelOutage` resource.
+
+**Example Request**
+
+```proto
+CreateModelOutageRequest {
+  parent: "modelProviders/123/modelSuites/456/modelLines/789"
+  model_outage: {
+    outage_interval: {
+      start_time: { seconds: 1609459200 }
+      end_time: { seconds: 1609545600 }
+    }
+  }
+}
+```
+
+### ListModelOutages
+
+Lists `ModelOutage` resources for a ModelLine.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelOutages to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelOutages will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelOutages` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+<ParamField query="show_deleted" type="bool">
+  Whether to include ModelOutages in the DELETED state or not.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Structured filter criteria.
+  
+  <ParamField body="filter.outage_interval_overlapping" type="Interval">
+    Matches against the `outage_interval` of the ModelOutage.
+  </ParamField>
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_outages" type="ModelOutage[]">
+  List of ModelOutage resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelOutagesRequest {
+  parent: "modelProviders/123/modelSuites/456/modelLines/789"
+  show_deleted: false
+  filter: {
+    outage_interval_overlapping: {
+      start_time: { seconds: 1609459200 }
+      end_time: { seconds: 1640995200 }
+    }
+  }
+  page_size: 50
+}
+```
+
+### DeleteModelOutage
+
+Deletes an existing `ModelOutage`. ModelOutage will transition to a DELETED state. This action is irreversible. Results in a `NOT_FOUND` error if the specified ModelOutage does not exist or it has been already deleted.
+
+This is a soft delete as defined by https://google.aip.dev/216.
+
+<ParamField path="name" type="string" required>
+  The name of the ModelOutage to delete.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelOutages/{model_outage}`
+</ParamField>
+
+**Response**
+
+Returns the updated `ModelOutage` resource in DELETED state.
+
+**Example Request**
+
+```proto
+DeleteModelOutageRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789/modelOutages/101"
+}
+```

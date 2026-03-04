@@ -1,0 +1,472 @@
+---
+title: Differential Privacy
+description: Understanding privacy protection through differential privacy in the Cross-Media Measurement API
+---
+
+## Overview
+
+**Differential Privacy (DP)** is a mathematical framework that provides strong privacy guarantees by adding carefully calibrated noise to query results. In the Cross-Media Measurement API, differential privacy ensures that individual user data cannot be inferred from measurement results, even by adversaries with significant background knowledge.
+
+## What is Differential Privacy?
+
+Differential privacy provides a formal guarantee: whether any individual is included in a dataset should not significantly change the output of a computation.
+
+### Formal Definition
+
+A randomized mechanism M satisfies (ε, δ)-differential privacy if for all datasets D₁ and D₂ that differ by a single individual, and for all possible outputs S:
+
+```
+Pr[M(D₁) ∈ S] ≤ exp(ε) × Pr[M(D₂) ∈ S] + δ
+```
+
+<Info>
+Intuition: An adversary looking at the output cannot tell whether any specific individual's data was included, protecting that individual's privacy.
+</Info>
+
+## Privacy Parameters
+
+The API uses two parameters to control privacy:
+
+```protobuf
+message DifferentialPrivacyParams {
+  double epsilon = 1;  // Privacy budget
+  double delta = 2;    // Failure probability
+}
+```
+
+### Epsilon (ε) - Privacy Budget
+
+**Epsilon** controls the privacy level:
+
+- **Lower epsilon** = Stronger privacy, more noise, less accuracy
+- **Higher epsilon** = Weaker privacy, less noise, more accuracy
+
+**Typical Values:**
+- `ε = 0.1` - Very strong privacy (significant noise)
+- `ε = 1.0` - Strong privacy (moderate noise)
+- `ε = 5.0` - Moderate privacy (limited noise)
+- `ε = 10.0` - Weak privacy (minimal noise)
+
+<Tip>
+Common practice: Use ε between 0.1 and 10.0. Start with ε = 1.0 and adjust based on accuracy needs.
+</Tip>
+
+**Privacy Budget Interpretation:**
+
+```
+Privacy Loss ≈ exp(ε) - 1
+
+ε = 0.1  →  ~10.5% privacy loss
+ε = 1.0  →  ~172% privacy loss
+ε = 5.0  →  ~14,700% privacy loss
+ε = 10.0 →  ~2,202,500% privacy loss
+```
+
+Small epsilon values provide strong privacy with minimal information leakage.
+
+### Delta (δ) - Failure Probability
+
+**Delta** represents the probability that the privacy guarantee fails:
+
+- Probability that the mechanism "breaks" privacy
+- Should be much smaller than 1/n (where n is population size)
+- Acts as a slack parameter for computational efficiency
+
+**Typical Values:**
+- `δ = 1e-12` - Very conservative (trillion to one odds)
+- `δ = 1e-9` - Conservative (billion to one odds)
+- `δ = 1e-6` - Standard (million to one odds)
+- `δ = 1e-5` - Relaxed (hundred thousand to one odds)
+
+<Note>
+For a population of 1 million, δ should be at most 1e-6. For 1 billion, use at most 1e-9.
+</Note>
+
+## Noise Mechanisms
+
+The API supports multiple mechanisms for adding noise:
+
+```protobuf
+enum NoiseMechanism {
+  NOISE_MECHANISM_UNSPECIFIED = 0;
+  NONE = 3;
+  GEOMETRIC = 1;
+  DISCRETE_GAUSSIAN = 2;
+  CONTINUOUS_LAPLACE = 4;
+  CONTINUOUS_GAUSSIAN = 5;
+}
+```
+
+### Geometric (Discrete Laplace)
+
+**Use Case:** Integer-valued outputs (counts, reach)
+
+**Characteristics:**
+- Discrete noise distribution
+- Two-sided geometric distribution
+- Optimal for counting queries
+- Provides (ε, 0)-DP (pure differential privacy)
+
+**Noise Formula:**
+```
+Noise ~ Geometric(1 - exp(-1/λ))
+λ = Δf / ε
+```
+
+Where Δf is the sensitivity (maximum change from one individual).
+
+### Discrete Gaussian
+
+**Use Case:** Integer-valued outputs with (ε, δ)-DP
+
+**Characteristics:**
+- Discrete Gaussian distribution
+- Allows for (ε, δ)-DP with δ > 0
+- Better accuracy than geometric for same privacy level
+- Used in some MPC protocols
+
+**Noise Formula:**
+```
+Noise ~ DiscreteGaussian(0, σ²)
+σ = Δf × √(2 ln(1.25/δ)) / ε
+```
+
+### Continuous Laplace
+
+**Use Case:** Real-valued outputs, direct protocol
+
+**Characteristics:**
+- Continuous noise distribution
+- Double exponential distribution
+- Provides (ε, 0)-DP
+- Commonly used in direct computations
+
+**Noise Formula:**
+```
+Noise ~ Laplace(0, λ)
+λ = Δf / ε
+```
+
+### Continuous Gaussian
+
+**Use Case:** Real-valued outputs with (ε, δ)-DP
+
+**Characteristics:**
+- Continuous Gaussian distribution
+- Allows for (ε, δ)-DP
+- Better accuracy for same privacy as Laplace
+- Used in some direct protocols
+
+**Noise Formula:**
+```
+Noise ~ Gaussian(0, σ²)
+σ = Δf × √(2 ln(1.25/δ)) / ε
+```
+
+<Info>
+Discrete mechanisms (Geometric, Discrete Gaussian) are used for MPC protocols. Continuous mechanisms (Laplace, Gaussian) are used for Direct protocols.
+</Info>
+
+## Privacy in Different Measurement Types
+
+Each measurement type applies differential privacy differently:
+
+### Reach Measurements
+
+```protobuf
+message Reach {
+  DifferentialPrivacyParams privacy_params = 1;
+}
+```
+
+**Sensitivity:** Adding/removing one user can change reach by at most 1
+
+**Noise Application:**
+1. DataProviders add noise to local sketches
+2. Global noise added during MPC aggregation
+3. Result clamped to non-negative values
+
+**Example:**
+- True reach: 1,000,000
+- Noise (ε=1.0): ~±1,000
+- Observed: 1,001,200 (or any value in typical range)
+
+### Reach and Frequency
+
+```protobuf
+message ReachAndFrequency {
+  DifferentialPrivacyParams reach_privacy_params = 1;
+  DifferentialPrivacyParams frequency_privacy_params = 2;
+  int32 maximum_frequency = 3;
+}
+```
+
+**Separate Privacy Budgets:**
+- **Reach privacy**: Controls noise on unique user count
+- **Frequency privacy**: Controls noise on frequency distribution
+
+**Sensitivity Considerations:**
+- Reach sensitivity: 1 user
+- Frequency sensitivity: Depends on maximum_frequency
+
+<Tip>
+You can allocate different privacy budgets to reach vs. frequency based on which metric is more sensitive in your use case.
+</Tip>
+
+### Impression Measurements
+
+```protobuf
+message Impression {
+  DifferentialPrivacyParams privacy_params = 1;
+  int32 maximum_frequency_per_user = 2;
+}
+```
+
+**Sensitivity:** Bounded by `maximum_frequency_per_user`
+
+One user can contribute at most `maximum_frequency_per_user` impressions.
+
+**Noise Scaling:**
+- Higher maximum_frequency_per_user → More noise needed
+- Noise proportional to sensitivity
+
+### Watch Duration
+
+```protobuf
+message Duration {
+  DifferentialPrivacyParams privacy_params = 1;
+  google.protobuf.Duration maximum_watch_duration_per_user = 4;
+}
+```
+
+**Sensitivity:** Bounded by `maximum_watch_duration_per_user`
+
+One user can contribute at most `maximum_watch_duration_per_user` of watch time.
+
+**Accuracy Trade-off:**
+- Setting a lower bound improves accuracy (less noise needed)
+- But may clip legitimate long viewing sessions
+
+<Note>
+Population measurements do not use differential privacy since they measure aggregate universe size, not individual-level data.
+</Note>
+
+## Multi-Layer Privacy Protection
+
+The API applies differential privacy at multiple levels:
+
+### 1. DataProvider Noise
+
+**Applied by:** DataProviders before encryption
+
+**Purpose:**
+- Protects against curious Duchies
+- Ensures privacy even if MPC is compromised
+- Local privacy guarantee
+
+**Configuration:**
+```protobuf
+message LiquidLegionsV2 {
+  DifferentialPrivacyParams data_provider_noise = 2;
+  // ...
+}
+```
+
+### 2. Global Noise
+
+**Applied by:** MPC protocol during aggregation
+
+**Purpose:**
+- Additional privacy layer
+- Compensates for potential correlations
+- Global privacy guarantee
+
+**Configuration:**
+Specified in MeasurementSpec privacy_params for the measurement type.
+
+### 3. Composition
+
+**Combined Effect:**
+
+When multiple DP mechanisms are applied, privacy budgets compose:
+
+**Sequential Composition:**
+```
+Total ε = ε₁ + ε₂ + ... + εₙ
+Total δ = δ₁ + δ₂ + ... + δₙ
+```
+
+**Advanced Composition:**
+More sophisticated bounds available (e.g., Rényi DP, zCDP) that give tighter privacy loss.
+
+<Info>
+The system automatically manages composition to ensure overall privacy guarantees are maintained.
+</Info>
+
+## Privacy Budget Management
+
+### Single Measurement
+
+For a single measurement, privacy budget is straightforward:
+- Set ε and δ based on privacy requirements
+- Noise is calibrated automatically
+- One-time privacy cost
+
+### Multiple Measurements
+
+Repeated measurements on the same data consume privacy budget:
+
+**Sequential Queries:**
+- Each measurement adds to total privacy loss
+- Total ε = sum of all measurement epsilons
+- Privacy degrades over time
+
+**Best Practices:**
+1. **Minimize queries:** Batch related analytics
+2. **Use larger ε per query:** If you plan few queries
+3. **Use smaller ε per query:** If you plan many queries
+4. **Track total budget:** Monitor cumulative privacy loss
+
+<Tip>
+If you need to run 10 measurements and have a total budget of ε=10, use ε=1 per measurement.
+</Tip>
+
+## Accuracy vs. Privacy Trade-offs
+
+### Error Magnitude
+
+Noise standard deviation is inversely proportional to epsilon:
+
+```
+σ ∝ 1/ε
+
+ε = 0.1  →  σ ≈ 10 × baseline
+ε = 1.0  →  σ ≈ 1 × baseline  
+ε = 10.0 →  σ ≈ 0.1 × baseline
+```
+
+### Relative Error
+
+For count queries with true count C:
+
+```
+Relative Error ≈ σ / C = (Δf / ε) / C
+```
+
+**Example: Reach Measurement**
+- True reach: 100,000
+- Sensitivity Δf: 1
+- Epsilon: 1.0
+- Noise σ: ~1
+- Relative error: 1/100,000 = 0.001% ✓ Excellent
+
+**Example: Small Reach**
+- True reach: 100
+- Sensitivity Δf: 1
+- Epsilon: 1.0
+- Noise σ: ~1
+- Relative error: 1/100 = 1% ✓ Good
+
+<Note>
+Large populations naturally get better relative accuracy because noise is constant while signal grows.
+</Note>
+
+### Improving Accuracy
+
+Strategies to reduce error while maintaining privacy:
+
+1. **Increase epsilon** (if privacy budget allows)
+2. **Reduce sensitivity** (e.g., lower maximum_frequency_per_user)
+3. **Increase signal** (larger populations, longer time periods)
+4. **Use appropriate mechanism** (Gaussian vs. Laplace for same ε, δ)
+
+## Practical Guidelines
+
+### Choosing Privacy Parameters
+
+**For Public Data:**
+- ε = 5.0 to 10.0
+- δ = 1e-6
+- Minimal privacy needs, prioritize accuracy
+
+**For Sensitive Data:**
+- ε = 0.1 to 1.0
+- δ = 1e-9 to 1e-12
+- Strong privacy needs, accept lower accuracy
+
+**For Standard Use Cases:**
+- ε = 1.0 to 3.0
+- δ = 1e-6 to 1e-9
+- Balanced privacy and utility
+
+### Sensitivity Bounding
+
+Always bound sensitivity with appropriate limits:
+
+**Reach/Frequency:**
+- Set reasonable maximum_frequency (e.g., 10-50)
+- Don't use artificially high values
+
+**Impressions:**
+- Set maximum_frequency_per_user based on realistic usage
+- Example: 100 for typical campaigns, 1000 for heavy video
+
+**Duration:**
+- Set maximum_watch_duration_per_user reasonably
+- Example: 24 hours for daily measurements
+
+<Tip>
+Lower sensitivity bounds = less noise = better accuracy. But don't set them so low that you clip real user behavior!
+</Tip>
+
+### Interpreting Results
+
+**Negative Values:**
+- DP noise can produce negative counts
+- System automatically clamps to 0
+- Common for small true values with large noise
+
+**Confidence Intervals:**
+- Noise is random, results vary
+- ±2σ gives ~95% confidence interval
+- Wider intervals for stronger privacy (lower ε)
+
+**Statistical Significance:**
+- Differences must exceed noise magnitude to be meaningful
+- Use multiple measurements to average out noise
+- Consider signal-to-noise ratio
+
+## Regulatory Compliance
+
+Differential privacy helps meet regulatory requirements:
+
+**GDPR (EU):**
+- DP is recognized as an anonymization technique
+- Strong DP (ε < 1) can remove GDPR applicability
+- Documented privacy guarantees support compliance
+
+**CCPA (California):**
+- Supports "deidentified" data classification
+- Mathematical privacy guarantees provide strong evidence
+- Reduces consumer data rights obligations
+
+**HIPAA (Healthcare):**
+- Can support Safe Harbor or Expert Determination
+- Provides quantifiable privacy risk assessment
+- Complements other privacy-enhancing technologies
+
+<Info>
+Consult legal counsel for specific regulatory guidance. Differential privacy is a technical tool that supports but does not replace legal compliance strategies.
+</Info>
+
+## Further Reading
+
+For detailed mathematical foundations:
+
+> Dwork, C. and Roth, A., 2014. "The algorithmic foundations of differential privacy." Foundations and Trends in Theoretical Computer Science, 9(3-4), pp.211-407.
+
+## Related Concepts
+
+- [Measurements](/concepts/measurements) - How DP is applied to different measurement types
+- [Multi-Party Computation](/concepts/multi-party-computation) - How DP combines with MPC for privacy
+- [Resource Model](/concepts/resource-model) - Understanding the API structure

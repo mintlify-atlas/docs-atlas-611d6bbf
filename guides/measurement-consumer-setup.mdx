@@ -1,0 +1,279 @@
+---
+title: "Measurement Consumer Setup"
+description: "Set up a MeasurementConsumer account to start creating measurements"
+---
+
+A MeasurementConsumer is an entity that requests measurements from DataProviders. This guide walks you through setting up a MeasurementConsumer account.
+
+## Overview
+
+The MeasurementConsumer setup process involves two main phases:
+
+1. **Obtaining a creation token** - Kingdom operator generates a token
+2. **Creating the MeasurementConsumer** - Use the token to register
+
+## Prerequisites
+
+Before creating a MeasurementConsumer, you need:
+
+<CardGroup cols={2}>
+  <Card title="Account Credentials" icon="user">
+    Valid account credentials for authentication with the API
+  </Card>
+  
+  <Card title="Kingdom Operator Contact" icon="building">
+    Access to request a creation token from the Kingdom operator
+  </Card>
+  
+  <Card title="Certificate" icon="certificate">
+    An X.509 certificate for signing measurements (can be created after registration)
+  </Card>
+  
+  <Card title="API Access" icon="network-wired">
+    Network connectivity to the Cross-Media Measurement API endpoints
+  </Card>
+</CardGroup>
+
+## Phase 1: Obtaining a Creation Token
+
+The Kingdom operator must generate a MeasurementConsumer creation token for you.
+
+<Steps>
+  <Step title="Request registration">
+    Contact the Kingdom operator and request registration of a new MeasurementConsumer.
+    
+    Provide the following information:
+    - Your organization name
+    - Contact information
+    - Use case description
+    - Any compliance requirements
+  </Step>
+  
+  <Step title="Kingdom operator creates token">
+    The Kingdom operator calls the Kingdom internal API to create a new MeasurementConsumer creation token.
+    
+    ```bash
+    # Internal API call (performed by Kingdom operator)
+    POST /internal/v2alpha/measurementConsumerCreationTokens
+    ```
+  </Step>
+  
+  <Step title="Token generation and storage">
+    The internal API server:
+    - Generates a new, cryptographically random MC creation token
+    - Computes a secure hash of the token
+    - Persists the hash in the database (not the token itself)
+    - Returns the plaintext token to the Kingdom operator
+    
+    <Warning>
+      The plaintext token is only shown once. The Kingdom operator must securely transmit it to you immediately.
+    </Warning>
+  </Step>
+  
+  <Step title="Receive your token">
+    The Kingdom operator securely provides you with the MC creation token.
+    
+    <Note>
+      Store this token securely. You'll need it for the next phase. If you lose it, you'll need to request a new token from the Kingdom operator.
+    </Note>
+  </Step>
+</Steps>
+
+## Phase 2: Creating the MeasurementConsumer
+
+Once you have the creation token and account credentials, you can create your MeasurementConsumer.
+
+<Steps>
+  <Step title="Authenticate with your account">
+    First, authenticate using your account credentials to obtain an ID token.
+    
+    See the [Authentication guide](/guides/authentication) for detailed instructions.
+    
+    ```bash
+    # Obtain ID token
+    curl -X POST https://api.example.com/v2alpha/authenticate
+    ```
+  </Step>
+  
+  <Step title="Prepare MeasurementConsumer details">
+    Prepare the details for your MeasurementConsumer resource:
+    
+    ```json
+    {
+      "displayName": "My Organization",
+      "measurementConsumerCreationToken": "YOUR_CREATION_TOKEN_HERE"
+    }
+    ```
+  </Step>
+  
+  <Step title="Call the CreateMeasurementConsumer API">
+    Call the public API to create your MeasurementConsumer, passing the creation token.
+    
+    ```bash
+    curl -X POST https://api.example.com/v2alpha/measurementConsumers \
+      -H "Authorization: Bearer YOUR_ID_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "displayName": "My Organization",
+        "measurementConsumerCreationToken": "YOUR_CREATION_TOKEN_HERE"
+      }'
+    ```
+  </Step>
+  
+  <Step title="Token validation">
+    The public API server:
+    - Hashes the provided creation token
+    - Calls the internal API with the token hash
+    
+    The internal API server:
+    - Reads the existing token hash from the database
+    - Verifies that the hashes match
+    - Checks that the token hasn't already been used
+    
+    <Warning>
+      Each creation token can only be used once. If the token has already been used or doesn't match, the request will fail with a `PERMISSION_DENIED` error.
+    </Warning>
+  </Step>
+  
+  <Step title="MeasurementConsumer creation">
+    If validation succeeds:
+    - The internal API persists the new MeasurementConsumer in the database
+    - The token is marked as used (cannot be reused)
+    - The MeasurementConsumer resource is returned
+    
+    Example response:
+    ```json
+    {
+      "name": "measurementConsumers/mc_abc123",
+      "displayName": "My Organization",
+      "createTime": "2024-03-04T12:00:00Z"
+    }
+    ```
+  </Step>
+  
+  <Step title="Save your MeasurementConsumer ID">
+    Extract and save your MeasurementConsumer resource name. You'll use this for all measurement operations.
+    
+    <Note>
+      The resource name follows the format: `measurementConsumers/{measurement_consumer_id}`
+    </Note>
+  </Step>
+</Steps>
+
+## Post-Setup Configuration
+
+After creating your MeasurementConsumer, complete these additional setup steps:
+
+<AccordionGroup>
+  <Accordion title="Create and Upload Certificates" icon="certificate">
+    Generate X.509 certificates for signing measurements:
+    
+    1. Generate a private key and certificate signing request (CSR)
+    2. Obtain a signed certificate from your Certificate Authority
+    3. Upload the certificate to the API
+    
+    ```bash
+    curl -X POST https://api.example.com/v2alpha/measurementConsumers/mc_abc123/certificates \
+      -H "Authorization: Bearer YOUR_ID_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "x509Der": "BASE64_ENCODED_CERTIFICATE"
+      }'
+    ```
+    
+    See the [Certificates guide](/guides/certificates) for more details.
+  </Accordion>
+  
+  <Accordion title="Configure API Keys" icon="key">
+    Set up API keys for programmatic access:
+    
+    1. Generate API keys through your account dashboard
+    2. Store keys securely in your application
+    3. Use keys in API request headers
+    
+    <Warning>
+      Never commit API keys to version control or expose them in client-side code.
+    </Warning>
+  </Accordion>
+  
+  <Accordion title="Establish DataProvider Relationships" icon="handshake">
+    Connect with DataProviders:
+    
+    1. Identify DataProviders you want to work with
+    2. Exchange certificates out-of-band for mutual verification
+    3. Coordinate on measurement protocols and privacy parameters
+    4. Test with sample measurements before production use
+  </Accordion>
+</AccordionGroup>
+
+## Verification
+
+Verify your MeasurementConsumer setup by retrieving your resource:
+
+```bash
+curl -X GET https://api.example.com/v2alpha/measurementConsumers/mc_abc123 \
+  -H "Authorization: Bearer YOUR_ID_TOKEN"
+```
+
+Expected response:
+
+```json
+{
+  "name": "measurementConsumers/mc_abc123",
+  "displayName": "My Organization",
+  "createTime": "2024-03-04T12:00:00Z"
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="PERMISSION_DENIED: Invalid token">
+    **Causes:**
+    - The creation token is incorrect
+    - The token has already been used
+    - The token has expired
+    
+    **Solution:**
+    Request a new creation token from the Kingdom operator.
+  </Accordion>
+  
+  <Accordion title="UNAUTHENTICATED error">
+    **Causes:**
+    - ID token is missing or invalid
+    - ID token has expired
+    - Authentication failed
+    
+    **Solution:**
+    Re-authenticate to obtain a fresh ID token. See the [Authentication guide](/guides/authentication).
+  </Accordion>
+  
+  <Accordion title="Account not found">
+    **Causes:**
+    - Account credentials haven't been properly set up
+    - Using wrong API endpoint
+    
+    **Solution:**
+    Verify you have valid account credentials before attempting to create a MeasurementConsumer.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Measurements" icon="chart-line" href="/guides/creating-measurements">
+    Learn how to create your first measurement
+  </Card>
+  
+  <Card title="Certificates" icon="certificate" href="/guides/certificates">
+    Set up certificates for digital signatures
+  </Card>
+  
+  <Card title="Requisitions" icon="list-check" href="/guides/requisitions">
+    Understand how requisitions work
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete API reference
+  </Card>
+</CardGroup>

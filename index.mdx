@@ -1,97 +1,232 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Cross-Media Measurement API"
+description: "Privacy-preserving cross-media measurement using multi-party computation"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden bg-gradient-to-br from-[#4a6a70] via-[#346861] to-[#688782] dark:from-[#1a1d27] dark:via-[#242838] dark:to-[#1a1d27] py-20">
+  <div className="max-w-7xl mx-auto px-6">
+    <div className="grid lg:grid-cols-12 gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+          Privacy-Preserving Cross-Media Measurement
+        </h1>
+        <p className="text-xl text-white/90 max-w-2xl mb-8">
+          A gRPC API for secure, privacy-preserving measurement and audience analytics using multi-party computation and differential privacy.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#688782] hover:bg-[#346861] text-white font-semibold transition-colors no-underline"
+          >
+            Get Started
+          </a>
+          <a 
+            href="/api/overview" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors no-underline"
+          >
+            API Reference
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+          <div className="font-mono text-sm text-white/90 space-y-2">
+            <div className="text-[#5bc4c9]">// Privacy-first measurement</div>
+            <div>service <span className="text-white font-semibold">Measurements</span> {"{"}</div>
+            <div className="pl-4">rpc <span className="text-white font-semibold">CreateMeasurement</span>(...)</div>
+            <div className="pl-4">rpc <span className="text-white font-semibold">GetMeasurement</span>(...)</div>
+            <div className="pl-4">rpc <span className="text-white font-semibold">ListMeasurements</span>(...)</div>
+            <div>{"}"}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Quick Start</h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Get started with the Cross-Media Measurement API in just a few steps.
+  </p>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+  <Steps>
+    <Step title="Understand the Architecture">
+      The Cross-Media Measurement API is a resource-oriented gRPC API using Protocol Buffers. It enables privacy-preserving measurements through multi-party computation across data providers.
+      
+      Read the [Core Concepts](/concepts) to understand the resource model and architecture.
+    </Step>
 
-## Make it yours
+    <Step title="Set Up Authentication">
+      Authentication uses OpenID Connect and X.509 certificates for digital signatures. You'll need to create an account and obtain credentials.
 
-Design a docs site that looks great and empowers your users.
+      ```bash
+      # The API uses certificate-based authentication
+      # See the authentication guide for details
+      ```
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      See the [Authentication Guide](/guides/authentication) for complete setup instructions.
+    </Step>
 
-## Create beautiful pages
+    <Step title="Create Your First Measurement">
+      Once authenticated, you can create measurements that compute reach, frequency, or impressions across multiple data providers while preserving privacy.
 
-Everything you need to create world-class documentation.
+      ```protobuf
+      message Measurement {
+        string name = 1;
+        string measurement_consumer_certificate = 2;
+        MeasurementSpec measurement_spec = 3;
+        State state = 4;
+        Result result = 5;
+      }
+      ```
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+      Follow the [Creating Measurements Guide](/guides/creating-measurements) to get started.
+    </Step>
 
-## Need inspiration?
+    <Step title="Explore the API">
+      The API provides comprehensive services for measurements, event groups, requisitions, model management, and panel matching.
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+      Browse the [API Reference](/api/overview) to explore all available services and methods.
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Key Features</h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Everything you need for privacy-preserving cross-media measurement.
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="Multi-Party Computation" icon="shield-halved" href="/concepts/multi-party-computation">
+      Secure computation across multiple parties without revealing individual data.
+    </Card>
+    <Card title="Differential Privacy" icon="lock" href="/concepts/differential-privacy">
+      Built-in differential privacy controls to protect sensitive measurement data.
+    </Card>
+    <Card title="Event Groups" icon="calendar-days" href="/concepts/event-groups">
+      Organize and manage event data with flexible metadata descriptors.
+    </Card>
+    <Card title="Panel Matching" icon="users" href="/guides/panel-matching">
+      Analyze audience overlap while preserving privacy across data providers.
+    </Card>
+    <Card title="Model Management" icon="chart-line" href="/api/model-providers">
+      Complete lifecycle management for models, suites, releases, and rollouts.
+    </Card>
+    <Card title="Requisition Workflow" icon="clipboard-check" href="/guides/requisitions">
+      Streamlined workflow for data providers to fulfill measurement requisitions.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Explore by Role</h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Find resources tailored to your role in the measurement ecosystem.
+  </p>
+
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <a href="/guides/measurement-consumer-setup" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#688782] dark:hover:border-[#688782] overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <div className="w-12 h-12 rounded-lg bg-[#688782]/10 flex items-center justify-center mb-4">
+          <svg className="w-6 h-6 text-[#688782]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Measurement Consumer</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Request and analyze cross-media measurements across multiple data providers.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#688782] group-hover:text-[#346861]">
+          Get started
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/api/data-providers" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#688782] dark:hover:border-[#688782] overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <div className="w-12 h-12 rounded-lg bg-[#688782]/10 flex items-center justify-center mb-4">
+          <svg className="w-6 h-6 text-[#688782]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+          </svg>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Data Provider</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Fulfill measurement requisitions and contribute to privacy-preserving computations.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#688782] group-hover:text-[#346861]">
+          Learn more
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/api/model-providers" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#688782] dark:hover:border-[#688782] overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <div className="w-12 h-12 rounded-lg bg-[#688782]/10 flex items-center justify-center mb-4">
+          <svg className="w-6 h-6 text-[#688782]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Model Provider</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Manage measurement models, releases, and rollouts for the ecosystem.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#688782] group-hover:text-[#346861]">
+          Explore
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Resources</h2>
+  <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+    Additional resources to help you succeed with the Cross-Media Measurement API.
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="Resource Model" icon="diagram-project" href="/concepts/resource-model">
+      Understand the relationships between API resources and how they work together.
+    </Card>
+    <Card title="Authentication Flow" icon="key" href="/guides/authentication">
+      Learn how to authenticate and make secure API calls using certificates.
+    </Card>
+    <Card title="Certificate Management" icon="certificate" href="/guides/certificates">
+      Manage X.509 certificates for digital signatures and verification.
+    </Card>
+    <Card title="GitHub Repository" icon="github" href="https://github.com/world-federation-of-advertisers/cross-media-measurement-api">
+      View the source code and contribute to the project.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-br from-[#4a6a70] to-[#346861] dark:from-[#242838] dark:to-[#1a1d27] p-8 md:p-12 border border-[#688782]/20">
+    <div className="max-w-3xl">
+      <h2 className="text-3xl font-bold text-white mb-4">
+        Ready to get started?
+      </h2>
+      <p className="text-lg text-white/90 mb-6">
+        Begin building privacy-preserving cross-media measurements with our comprehensive API.
+      </p>
+      <a 
+        href="/quickstart" 
+        className="inline-flex items-center px-6 py-3 rounded-lg bg-white hover:bg-white/90 text-[#346861] font-semibold transition-colors no-underline"
+      >
+        Start Building
+      </a>
+    </div>
+  </div>
+</div>

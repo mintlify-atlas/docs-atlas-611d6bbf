@@ -1,0 +1,304 @@
+---
+title: Model Lines API
+description: API reference for managing Model Line resources
+---
+
+The Model Lines API allows you to create, retrieve, list, and manage model lines. A model line represents a series of models within a model suite.
+
+## Resource
+
+### ModelLine
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Human-readable display name for this ModelLine
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable string to describe the usage of this model line
+</ResponseField>
+
+<ResponseField name="active_start_time" type="Timestamp" required>
+  The start of the time range when this ModelLine is active (available for labeling), inclusive.
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="active_end_time" type="Timestamp">
+  The end of the time range when this ModelLine is active (available for labeling), exclusive.
+  
+  When specified in a request, this must be sufficiently in the future to allow for EDPs to sync with the Kingdom. If not specified, there is no end to the active time range.
+</ResponseField>
+
+<ResponseField name="type" type="Type" required>
+  Type of this ModelLine. DataProviders must label events using all available ModelLines independently of their type.
+  
+  **Enum values:**
+  - `TYPE_UNSPECIFIED`: Default value, should not be used
+  - `DEV`: Used to test new ModelReleases. Not available to all MeasurementConsumers when generating reports
+  - `PROD`: Default ModelLine that must be used to generate reports for MeasurementConsumers
+  - `HOLDBACK`: (Deprecated) Used to generate reports in case of PROD ModelLine outages
+</ResponseField>
+
+<ResponseField name="holdback_model_line" type="string">
+  (Deprecated) The holdback ModelLine that must be used to generate reports in case this ModelLine presents outages.
+  
+  May only be set if `type` is `PROD`. Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelLine was created
+</ResponseField>
+
+<ResponseField name="update_time" type="Timestamp" output>
+  When the ModelLine was last updated
+</ResponseField>
+
+## Methods
+
+### CreateModelLine
+
+Creates a new `ModelLine`.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelSuite.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+</ParamField>
+
+<ParamField body="model_line" type="ModelLine" required>
+  The ModelLine to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `active_start_time`: Start of the active time range
+  - `type`: Type of the model line
+</ParamField>
+
+**Response**
+
+Returns the created `ModelLine` resource.
+
+**Example Request**
+
+```proto
+CreateModelLineRequest {
+  parent: "modelProviders/123/modelSuites/456"
+  model_line: {
+    display_name: "Production Line"
+    description: "Primary production model line"
+    active_start_time: { seconds: 1609459200 }
+    type: PROD
+  }
+}
+```
+
+### GetModelLine
+
+Get a `ModelLine`.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelLine to retrieve.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+**Response**
+
+Returns a `ModelLine` resource.
+
+**Example Request**
+
+```proto
+GetModelLineRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789"
+}
+```
+
+### ListModelLines
+
+Lists `ModelLine` resources for the parent ModelSuite.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelSuite.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+  
+  The wildcard ID (`-`) may be used in place of the ModelSuite ID to list across every ModelSuite in the ancestor ModelProvider. If this is done, then the wildcard ID may also be used in place of the ModelProvider ID to list across all ancestors.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Structured filter criteria. Each field represents a term in a conjunction.
+  
+  <ParamField body="filter.type_in" type="Type[]">
+    Set of ModelLine.Type values which ModelLine.type must be in.
+  </ParamField>
+  
+  <ParamField body="filter.active_interval_contains" type="Interval">
+    Time interval which must be fully contained by the interval specified by ModelLine.active_start_time and ModelLine.active_end_time.
+  </ParamField>
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelLines to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelLines will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelLines` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_lines" type="ModelLine[]">
+  List of ModelLine resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelLinesRequest {
+  parent: "modelProviders/123/modelSuites/456"
+  filter: {
+    type_in: [PROD, DEV]
+  }
+  page_size: 50
+}
+```
+
+### SetModelLineHoldbackModelLine
+
+(Deprecated) Sets the `holdback_model_line` for a ModelLine.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField body="holdback_model_line" type="string">
+  The holdback model line resource name. If not specified, the field will be cleared.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+**Response**
+
+Returns the updated `ModelLine` resource.
+
+### SetModelLineActiveEndTime
+
+Sets the `active_end_time` for a ModelLine.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField body="active_end_time" type="Timestamp">
+  The active_end_time value to be set.
+</ParamField>
+
+**Response**
+
+Returns the updated `ModelLine` resource.
+
+**Example Request**
+
+```proto
+SetModelLineActiveEndTimeRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789"
+  active_end_time: { seconds: 1640995200 }
+}
+```
+
+### SetModelLineType
+
+Sets the `type` field of a ModelLine.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField body="type" type="Type" required>
+  Type value to be set.
+  
+  The deprecated `HOLDBACK` type may not be used.
+</ParamField>
+
+**Response**
+
+Returns the updated `ModelLine` resource.
+
+**Example Request**
+
+```proto
+SetModelLineTypeRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789"
+  type: PROD
+}
+```
+
+### EnumerateValidModelLines
+
+Enumerates the ModelLines which are available across all specified DataProviders for the specified time interval.
+
+Results are ordered by `type` from `PROD` to `HOLDBACK` to `DEV`, then by `active_start_time` descending.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelSuite.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+  
+  The wildcard ID (`-`) may be used in place of the ModelSuite ID to list across every ModelSuite in the ancestor ModelProvider. If this is done, then the wildcard ID may also be used in place of the ModelProvider ID to list across all ancestors.
+</ParamField>
+
+<ParamField body="time_interval" type="Interval" required>
+  The time interval for which all data_providers must have data available for a ModelLine to be included in the response.
+</ParamField>
+
+<ParamField body="data_providers" type="string[]" required>
+  The resource names of the DataProviders which must have data available for a ModelLine to be included in the response.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="types" type="Type[]">
+  List of ModelLine.Type values to consider. Defaults to `PROD`.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_lines" type="ModelLine[]">
+  The ModelLines that met all the criteria
+</ResponseField>
+
+**Example Request**
+
+```proto
+EnumerateValidModelLinesRequest {
+  parent: "modelProviders/123/modelSuites/456"
+  time_interval: {
+    start_time: { seconds: 1609459200 }
+    end_time: { seconds: 1640995200 }
+  }
+  data_providers: [
+    "dataProviders/789",
+    "dataProviders/790"
+  ]
+  types: [PROD]
+}
+```

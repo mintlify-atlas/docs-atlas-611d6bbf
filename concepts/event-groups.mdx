@@ -1,0 +1,487 @@
+---
+title: Event Groups
+description: Understanding how event data is organized and managed in the Cross-Media Measurement API
+---
+
+## Overview
+
+An **EventGroup** is a logical grouping of events defined by a DataProvider. EventGroups represent collections of user interaction data such as ad impressions, video views, or app interactions. They serve as the fundamental unit of data organization for measurements.
+
+## What is an EventGroup?
+
+EventGroups organize events based on business logic:
+
+- **Advertising Campaign**: All impressions for a specific campaign
+- **Creative**: All views of a particular creative asset
+- **App Install Campaign**: All app install events from a promotion
+- **Content Episode**: All watch events for a TV episode
+- **Publisher Inventory**: All ad events on a specific website
+
+<Info>
+EventGroups provide the abstraction that allows measurements to query specific subsets of a DataProvider's event data without requiring access to raw event logs.
+</Info>
+
+## Resource Definition
+
+```protobuf
+message EventGroup {
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/EventGroup"
+    pattern: "dataProviders/{data_provider}/eventGroups/{event_group}"
+    pattern: "measurementConsumers/{measurement_consumer}/eventGroups/{event_group}"
+  };
+
+  string name = 1;
+  string measurement_consumer = 2;  // Required, immutable
+  string event_group_reference_id = 5;
+  repeated MediaType media_types = 13;
+  EventGroupMetadata event_group_metadata = 14;
+  repeated EventTemplate event_templates = 7;
+  EncryptedMessage encrypted_metadata = 10;
+  google.type.Interval data_availability_interval = 11;
+  State state = 9;
+}
+```
+
+**Resource Pattern:**
+- Canonical: `dataProviders/{data_provider}/eventGroups/{event_group}`
+- Alternative: `measurementConsumers/{measurement_consumer}/eventGroups/{event_group}`
+
+## Core Fields
+
+### MeasurementConsumer Association
+
+```protobuf
+string measurement_consumer = 2 [
+  (google.api.resource_reference).type = "halo.wfanet.org/MeasurementConsumer",
+  (google.api.field_behavior) = REQUIRED,
+  (google.api.field_behavior) = IMMUTABLE
+];
+```
+
+Every EventGroup is associated with exactly one MeasurementConsumer:
+
+- **Required at creation** and cannot be changed
+- Links events to the entity that can measure them
+- Enables access control and data governance
+- Supports multi-tenant data sharing
+
+<Note>
+A DataProvider can create EventGroups for multiple different MeasurementConsumers, keeping data logically separated.
+</Note>
+
+### Event Group Reference ID
+
+```protobuf
+string event_group_reference_id = 5;
+```
+
+**Purpose:**
+- External identifier from DataProvider's system
+- Helps DataProviders synchronize metadata
+- Not used for API operations (use resource name instead)
+- Useful for debugging and reconciliation
+
+**Example:** Campaign ID from ad server, content ID from CMS
+
+### Media Types
+
+```protobuf
+repeated MediaType media_types = 13;
+```
+
+Specifies the types of media events contained in this EventGroup:
+
+```protobuf
+enum MediaType {
+  MEDIA_TYPE_UNSPECIFIED = 0;
+  VIDEO = 1;
+  DISPLAY = 2;
+  AUDIO = 3;
+  // ... additional types
+}
+```
+
+**Use Cases:**
+- Determines compatible EventTemplates
+- Enables media-specific filtering
+- Supports cross-media attribution
+
+<Tip>
+An EventGroup can have multiple media types if it represents a multi-format campaign.
+</Tip>
+
+### Event Templates
+
+```protobuf
+message EventTemplate {
+  string type = 1;  // Fully-qualified protobuf message type
+}
+
+repeated EventTemplate event_templates = 7;
+```
+
+**Purpose:**
+- Defines the schema of events in this EventGroup
+- Specifies which protobuf message types represent events
+- Enables type-safe event processing
+
+**Example:**
+```protobuf
+event_templates {
+  type: "wfa.measurement.api.v2alpha.event.ImpressionEvent"
+}
+```
+
+<Info>
+Event templates are being replaced by media_types in future versions, but should be set alongside media_types during the transition period.
+</Info>
+
+### Data Availability Interval
+
+```protobuf
+google.type.Interval data_availability_interval = 11;
+```
+
+Specifies when events in this EventGroup are available:
+
+```protobuf
+message Interval {
+  google.protobuf.Timestamp start_time = 1;  // Required
+  google.protobuf.Timestamp end_time = 2;    // Optional for unbounded
+}
+```
+
+**Semantics:**
+- `start_time`: When events began (campaign start date)
+- `end_time`: When events ended (campaign end date, or omitted if ongoing)
+- Events outside this interval are not available for measurement
+
+**Example Use Cases:**
+- **Ad Campaign**: Start and end dates of campaign flight
+- **TV Series**: Premiere date to finale date
+- **Ongoing Service**: Start date with no end date
+
+<Tip>
+If your campaign is ongoing, omit end_time to indicate the EventGroup remains active.
+</Tip>
+
+## Event Group Metadata
+
+### Encrypted Metadata
+
+```protobuf
+message Metadata {
+  string event_group_metadata_descriptor = 1;
+  google.protobuf.Any metadata = 2;
+}
+
+EncryptedMessage encrypted_metadata = 10;
+```
+
+EventGroups can contain rich metadata encrypted for the MeasurementConsumer:
+
+**Encryption Process:**
+1. DataProvider creates Metadata message
+2. Serializes metadata using descriptor
+3. Encrypts using MeasurementConsumer's public key
+4. Sets encrypted_metadata field
+
+**Metadata Contents:**
+- Campaign details (name, advertiser, budget)
+- Creative attributes (format, dimensions)
+- Targeting criteria (demographics, interests)
+- Custom business metadata
+
+<Note>
+Metadata is encrypted so only the MeasurementConsumer can read it. The CMMS system and other DataProviders cannot access this information.
+</Note>
+
+### Public Metadata (EventGroupMetadata)
+
+```protobuf
+EventGroupMetadata event_group_metadata = 14;
+```
+
+Public, non-encrypted metadata that describes the EventGroup:
+
+```protobuf
+message EventGroupMetadata {
+  // Example fields from event_group_metadata.proto
+  // Specific structure depends on implementation
+}
+```
+
+**Use Cases:**
+- Publicly shareable attributes
+- System-level metadata
+- Searchable/filterable properties
+
+### Metadata Descriptors
+
+EventGroupMetadataDescriptors define metadata schemas:
+
+**Resource Pattern:** `dataProviders/{data_provider}/eventGroupMetadataDescriptors/{descriptor}`
+
+**Purpose:**
+- Define custom metadata structures
+- Enable type-safe metadata handling
+- Support evolution of metadata schemas
+
+## State Lifecycle
+
+```protobuf
+enum State {
+  STATE_UNSPECIFIED = 0;
+  ACTIVE = 1;
+  DELETED = 2;  // Terminal state
+}
+```
+
+### ACTIVE
+
+- EventGroup is available for measurements
+- Can be referenced in RequisitionSpecs
+- Metadata can be updated
+
+### DELETED
+
+- EventGroup has been deleted
+- **All mutable optional fields are cleared**
+- Cannot be used in new measurements
+- Terminal state - cannot be reactivated
+
+<Info>
+Deleting an EventGroup does not affect existing measurements that already reference it. Only new measurements are prevented from using deleted EventGroups.
+</Info>
+
+## Creating an EventGroup
+
+When creating an EventGroup, you must provide:
+
+### Required Fields
+
+1. **measurement_consumer**: Resource name of associated MeasurementConsumer
+2. **media_types**: At least one media type
+3. **event_group_metadata**: Public metadata
+4. **data_availability_interval.start_time**: When events begin
+
+### Optional Fields
+
+1. **event_group_reference_id**: Your external identifier
+2. **event_templates**: Event schema definitions
+3. **encrypted_metadata**: Private metadata for MeasurementConsumer
+4. **measurement_consumer_public_key**: For encrypting metadata
+5. **data_availability_interval.end_time**: When events end (if bounded)
+
+**Example Creation:**
+```json
+{
+  "measurement_consumer": "measurementConsumers/abc123",
+  "media_types": ["VIDEO"],
+  "event_group_reference_id": "campaign-2024-q1-video",
+  "data_availability_interval": {
+    "start_time": "2024-01-01T00:00:00Z",
+    "end_time": "2024-03-31T23:59:59Z"
+  },
+  "event_templates": [
+    {"type": "wfa.measurement.api.v2alpha.event.ImpressionEvent"}
+  ]
+}
+```
+
+## Using EventGroups in Measurements
+
+EventGroups are referenced in RequisitionSpecs when creating Measurements:
+
+```protobuf
+message RequisitionSpec {
+  message EventGroupEntry {
+    string key = 1;  // EventGroup resource name
+    
+    message Value {
+      google.type.Interval collection_interval = 1;
+      EventFilter filter = 2;
+    }
+    Value value = 2;
+  }
+  repeated EventGroupEntry event_groups = 1;
+}
+```
+
+### Collection Interval
+
+Specifies the time range of events to include from the EventGroup:
+
+```protobuf
+google.type.Interval collection_interval = 1;
+```
+
+**Relationship to Data Availability:**
+- Collection interval should fall within data_availability_interval
+- Can be narrower than availability (query subset of time)
+- If outside availability, DataProvider may refuse requisition
+
+**Example:**
+- EventGroup availability: 2024-01-01 to 2024-12-31 (full year)
+- Measurement collection: 2024-01-01 to 2024-01-31 (January only)
+
+<Tip>
+You can create multiple measurements with different collection intervals from the same EventGroup to analyze different time periods.
+</Tip>
+
+### Event Filters
+
+Optional filters to select specific events within the EventGroup:
+
+```protobuf
+EventFilter filter = 2;
+```
+
+**Use Cases:**
+- Filter by creative ID
+- Filter by geographic region
+- Filter by device type
+- Custom attribute filtering
+
+<Note>
+Filtering capabilities depend on what fields are available in the event data and supported by the DataProvider.
+</Note>
+
+## Aggregated Activity
+
+EventGroups can include activity summaries:
+
+```protobuf
+message AggregatedActivity {
+  DateInterval interval = 1;
+}
+
+repeated AggregatedActivity aggregated_activities = 15;
+```
+
+**Purpose:**
+- Provide summary statistics about event activity
+- Help MeasurementConsumers understand data availability
+- Enable trend analysis
+
+**Availability:**
+Only populated when requesting EventGroups with `view = WITH_ACTIVITY_SUMMARY`
+
+## EventGroup Views
+
+```protobuf
+enum View {
+  VIEW_UNSPECIFIED = 0;
+  BASIC = 1;
+  WITH_ACTIVITY_SUMMARY = 2;
+}
+```
+
+**BASIC:**
+- Standard fields only
+- No aggregated_activities
+- Faster, less data transfer
+
+**WITH_ACTIVITY_SUMMARY:**
+- Includes aggregated_activities field
+- Provides activity summaries
+- More data transfer
+
+<Tip>
+Use BASIC view for listing EventGroups. Use WITH_ACTIVITY_SUMMARY only when you need activity details.
+</Tip>
+
+## Best Practices
+
+### EventGroup Design
+
+1. **Logical Grouping**: Group events by meaningful business units (campaigns, creatives, etc.)
+2. **Granularity**: Not too broad (all events) or too narrow (one event per group)
+3. **Stability**: Avoid frequent creation/deletion; update existing EventGroups when possible
+4. **Naming**: Use descriptive event_group_reference_id for easy identification
+
+### Metadata Management
+
+1. **Encrypt Sensitive Data**: Use encrypted_metadata for proprietary information
+2. **Public Metadata**: Use event_group_metadata for non-sensitive, searchable attributes
+3. **Schema Evolution**: Use EventGroupMetadataDescriptors to manage schema changes
+4. **Key Management**: Securely manage encryption keys for metadata
+
+### Data Availability
+
+1. **Accurate Intervals**: Set data_availability_interval to match actual data retention
+2. **Update Intervals**: Update end_time when campaigns conclude
+3. **Buffer Time**: Consider data pipeline delays when setting availability
+4. **Unbounded Groups**: Use open-ended intervals for ongoing data collection
+
+### Performance
+
+1. **Batch Creation**: Create multiple EventGroups in parallel when possible
+2. **Listing Optimization**: Use filters and field masks to reduce response size
+3. **View Selection**: Only request WITH_ACTIVITY_SUMMARY when needed
+4. **Caching**: Cache EventGroup metadata locally to reduce API calls
+
+## Common Patterns
+
+### Campaign-Based EventGroups
+
+```
+One EventGroup per advertising campaign
+├── Contains all impressions for the campaign
+├── data_availability_interval = campaign flight dates
+├── encrypted_metadata = campaign details (advertiser, budget, etc.)
+└── Can be measured independently or combined with other campaigns
+```
+
+### Publisher Inventory EventGroups
+
+```
+One EventGroup per publisher property
+├── Contains all ad events on that property
+├── data_availability_interval = ongoing (no end_time)
+├── event_group_metadata = property attributes (category, audience)
+└── Measurements query specific time ranges via collection_interval
+```
+
+### Content-Based EventGroups
+
+```
+One EventGroup per content item (video, article, etc.)
+├── Contains all view/engagement events for that content
+├── data_availability_interval = publication date to archive date
+├── metadata = content attributes (title, genre, duration)
+└── Enables content performance analysis
+```
+
+## Troubleshooting
+
+### EventGroup Not Usable in Measurement
+
+**Possible Causes:**
+- EventGroup state is DELETED
+- measurement_consumer doesn't match Measurement owner
+- collection_interval outside data_availability_interval
+- Incompatible media_types or event_templates
+
+### Metadata Decryption Fails
+
+**Possible Causes:**
+- Wrong encryption key used
+- MeasurementConsumer public key rotated
+- Corrupted encrypted_metadata
+- Version mismatch in encryption format
+
+### Requisition Refused
+
+**Possible Causes:**
+- collection_interval significantly outside data_availability_interval
+- Event data not yet available (pipeline delay)
+- EventGroup deleted after Measurement creation
+- Invalid event filters
+
+## Related Concepts
+
+- [Measurements](/concepts/measurements) - How EventGroups are used in measurements
+- [Resource Model](/concepts/resource-model) - EventGroup's place in the resource hierarchy
+- [Differential Privacy](/concepts/differential-privacy) - Privacy protection for event data

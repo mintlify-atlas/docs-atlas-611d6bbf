@@ -1,0 +1,241 @@
+---
+title: "API Keys API"
+description: "Service for managing revocable authentication keys"
+---
+
+The API Keys service provides methods for creating and deleting API keys that can be used for programmatic authentication to the Cross-Media Measurement API.
+
+## Resource
+
+### ApiKey
+
+Resource representing a revocable authentication key for an API resource.
+
+**Resource Pattern:** `measurementConsumers/{measurement_consumer}/apiKeys/{api_key}`
+
+<ResponseField name="name" type="string" required>
+  Resource name.
+  
+  Format: `measurementConsumers/{measurement_consumer}/apiKeys/{api_key}`
+</ResponseField>
+
+<ResponseField name="nickname" type="string" required>
+  Human-readable nickname for this ApiKey.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable description for the intended usage of this ApiKey.
+</ResponseField>
+
+<ResponseField name="authentication_key" type="string">
+  The actual API key for authentication.
+  
+  Only set in `CreateApiKey` responses. Output-only.
+  
+  <Warning>
+    This value is only returned once during creation. Store it securely as it cannot be retrieved later.
+  </Warning>
+</ResponseField>
+
+## Methods
+
+### CreateApiKey
+
+Creates an ApiKey.
+
+Results in `PERMISSION_DENIED` if the authenticated caller does not own the MeasurementConsumer the ApiKey is being created for.
+
+<ParamField path="parent" type="string" required>
+  Name of the parent MeasurementConsumer.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="api_key" type="ApiKey" required>
+  The ApiKey to create.
+  
+  The `name` field will be ignored, and the system will assign an ID.
+  
+  <Expandable title="ApiKey fields">
+    <ParamField name="nickname" type="string" required>
+      Human-readable nickname for the API key.
+    </ParamField>
+    
+    <ParamField name="description" type="string">
+      Description of the intended usage.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="ApiKey">
+  The created ApiKey resource including the `authentication_key`.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message CreateApiKeyRequest {
+  string parent = 1;  // "measurementConsumers/mc-123"
+  ApiKey api_key = 2;
+}
+
+// ApiKey message
+message ApiKey {
+  string nickname = 2;      // "Production API Key"
+  string description = 3;   // "Used for automated measurement creation"
+}
+```
+
+#### Example Response
+
+```proto
+message ApiKey {
+  string name = 1;                    // "measurementConsumers/mc-123/apiKeys/key-456"
+  string nickname = 2;                // "Production API Key"
+  string description = 3;             // "Used for automated measurement creation"
+  string authentication_key = 4;      // "ak_live_abc123xyz789..."
+}
+```
+
+<Warning>
+  The `authentication_key` is only returned in the creation response. Store it securely immediately.
+</Warning>
+
+#### Error Conditions
+
+- `PERMISSION_DENIED` - Caller does not own the parent MeasurementConsumer
+- `INVALID_ARGUMENT` - Invalid ApiKey data (e.g., missing nickname)
+- `NOT_FOUND` - Parent MeasurementConsumer not found
+
+---
+
+### DeleteApiKey
+
+Deletes an ApiKey.
+
+Results in `PERMISSION_DENIED` if the authenticated caller does not own the MeasurementConsumer the ApiKey is being used for.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ApiKey to delete.
+  
+  Format: `measurementConsumers/{measurement_consumer}/apiKeys/{api_key}`
+</ParamField>
+
+<ResponseField name="response" type="ApiKey">
+  The deleted ApiKey resource (without the authentication_key).
+</ResponseField>
+
+#### Example Request
+
+```proto
+message DeleteApiKeyRequest {
+  string name = 1;  // "measurementConsumers/mc-123/apiKeys/key-456"
+}
+```
+
+#### Example Response
+
+```proto
+message ApiKey {
+  string name = 1;         // "measurementConsumers/mc-123/apiKeys/key-456"
+  string nickname = 2;     // "Production API Key"
+  string description = 3;  // "Used for automated measurement creation"
+  // authentication_key is NOT included in delete response
+}
+```
+
+#### Error Conditions
+
+- `PERMISSION_DENIED` - Caller does not own the MeasurementConsumer
+- `NOT_FOUND` - ApiKey not found
+
+## Usage Patterns
+
+### Creating an API Key for Authentication
+
+1. **Create the API key:**
+
+```proto
+CreateApiKeyRequest {
+  parent: "measurementConsumers/mc-123"
+  api_key: {
+    nickname: "CI/CD Pipeline Key"
+    description: "Used by automated testing and deployment systems"
+  }
+}
+```
+
+2. **Store the returned `authentication_key` securely:**
+
+The response will include the actual authentication key:
+
+```proto
+ApiKey {
+  name: "measurementConsumers/mc-123/apiKeys/key-789"
+  nickname: "CI/CD Pipeline Key"
+  description: "Used by automated testing and deployment systems"
+  authentication_key: "ak_live_SecureRandomString123456789..."
+}
+```
+
+3. **Use the key for API authentication:**
+
+Include the `authentication_key` in your API requests according to your authentication mechanism (typically as a bearer token or API key header).
+
+### Rotating API Keys
+
+To rotate an API key:
+
+1. Create a new API key
+2. Update your systems to use the new key
+3. Verify the new key works correctly
+4. Delete the old API key
+
+```proto
+// Step 1: Create new key
+CreateApiKeyRequest {
+  parent: "measurementConsumers/mc-123"
+  api_key: {
+    nickname: "Production Key - 2024"
+    description: "Replacement for Production Key - 2023"
+  }
+}
+
+// Step 4: Delete old key after verification
+DeleteApiKeyRequest {
+  name: "measurementConsumers/mc-123/apiKeys/old-key-id"
+}
+```
+
+### Organizing Multiple API Keys
+
+Use descriptive nicknames and descriptions to organize keys by:
+
+- **Environment:** "Production", "Staging", "Development"
+- **Purpose:** "Measurement Creation", "Reporting", "Admin Operations"
+- **Owner:** "Data Engineering Team", "Analytics Service"
+
+```proto
+CreateApiKeyRequest {
+  parent: "measurementConsumers/mc-123"
+  api_key: {
+    nickname: "Staging - Analytics Service"
+    description: "Used by analytics service in staging environment for testing"
+  }
+}
+```
+
+## Security Best Practices
+
+<Warning>
+  - Store API keys securely (e.g., in a secrets manager)
+  - Never commit API keys to version control
+  - Rotate keys regularly
+  - Use separate keys for different environments
+  - Delete unused keys promptly
+  - Monitor API key usage for suspicious activity
+</Warning>
+
+<Info>
+  API keys are tied to specific MeasurementConsumers. Each key inherits the permissions of its parent MeasurementConsumer.
+</Info>

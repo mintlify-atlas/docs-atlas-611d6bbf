@@ -1,0 +1,142 @@
+---
+title: Model Releases API
+description: API reference for managing Model Release resources
+---
+
+The Model Releases API allows you to create, retrieve, and list model releases. A model release represents a specific release of a model within a model suite.
+
+## Resource
+
+### ModelRelease
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}`
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelRelease was created
+</ResponseField>
+
+<ResponseField name="population" type="string" required>
+  The Population resource this ModelRelease references.
+  
+  Format: `dataProviders/{data_provider}/populations/{population}`
+  
+  This field is immutable after creation.
+</ResponseField>
+
+## Methods
+
+### CreateModelRelease
+
+Creates a new `ModelRelease`.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelSuite.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+</ParamField>
+
+<ParamField body="model_release" type="ModelRelease" required>
+  The ModelRelease to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `population`: Reference to a Population resource
+</ParamField>
+
+**Response**
+
+Returns the created `ModelRelease` resource.
+
+**Example Request**
+
+```proto
+CreateModelReleaseRequest {
+  parent: "modelProviders/123/modelSuites/456"
+  model_release: {
+    population: "dataProviders/789/populations/101"
+  }
+}
+```
+
+### GetModelRelease
+
+Returns a single `ModelRelease`.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelRelease to retrieve.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}`
+</ParamField>
+
+**Response**
+
+Returns a `ModelRelease` resource.
+
+**Example Request**
+
+```proto
+GetModelReleaseRequest {
+  name: "modelProviders/123/modelSuites/456/modelReleases/789"
+}
+```
+
+### ListModelReleases
+
+Lists `ModelRelease` resources.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelSuite.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+  
+  The wildcard ID (`-`) may be used in place of the ModelSuite ID to list across every ModelSuite in the ancestor ModelProvider.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Structured filter criteria. Each field represents a term in a conjunction.
+  
+  <ParamField body="filter.population_in" type="string[]">
+    Set of Population resource names which `ModelRelease.population` must be in.
+    
+    Format: `dataProviders/{data_provider}/populations/{population}`
+  </ParamField>
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelReleases to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelReleases will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelReleases` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_releases" type="ModelRelease[]">
+  List of ModelRelease resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelReleasesRequest {
+  parent: "modelProviders/123/modelSuites/456"
+  filter: {
+    population_in: [
+      "dataProviders/789/populations/101",
+      "dataProviders/789/populations/102"
+    ]
+  }
+  page_size: 50
+}
+```

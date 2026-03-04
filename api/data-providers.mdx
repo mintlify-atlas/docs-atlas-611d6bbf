@@ -1,0 +1,321 @@
+---
+title: "Data Providers API"
+description: "Complete API reference for the DataProviders service"
+---
+
+The DataProviders service provides methods for managing data provider resources and their configurations.
+
+## Resource
+
+### DataProvider
+
+A provider of event (e.g. impression) data. For example, a publisher or panel provider.
+
+**Resource name pattern:** `dataProviders/{data_provider}`
+
+<ResponseField name="name" type="string" required>
+  Resource name identifier.
+</ResponseField>
+
+<ResponseField name="certificate_der" type="bytes" required>
+  The X.509 certificate belonging to this `DataProvider` in DER format which can be used to verify `public_key`.
+</ResponseField>
+
+<ResponseField name="certificate" type="string">
+  Resource name of the `Certificate` belonging to this `DataProvider` which can be used to verify `public_key`.
+  
+  The `x509_der` field of this resource matches `certificate_der`. Output only.
+</ResponseField>
+
+<ResponseField name="public_key" type="SignedMessage" required>
+  Serialized `EncryptionPublicKey` for this `DataProvider`, which can be verified using `certificate`.
+  
+  The version of the `EncryptionPublicKey` message must match the API version used to last update this resource.
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Display name of the data provider.
+</ResponseField>
+
+<ResponseField name="required_duchies" type="string[]">
+  Resource names of every `Duchy` that must be included in all computations involving this `DataProvider`.
+</ResponseField>
+
+<ResponseField name="data_availability_interval" type="Interval">
+  Interval for when data is guaranteed to be available for a `Requisition`. If this field is specified, both `start_time` and `end_time` must be set.
+  
+  This field is being replaced by `data_availability_intervals` and is planned to be deprecated no sooner than in the Halo CMM 0.6 release.
+</ResponseField>
+
+<ResponseField name="capabilities" type="Capabilities">
+  Capabilities of this `DataProvider`. This indicates to the CMMS what the `DataProvider` is capable of at `Measurement` creation time.
+  
+  <Expandable title="Capabilities fields">
+    <ResponseField name="honest_majority_share_shuffle_supported" type="bool">
+      Whether the Honest Majority Share Shuffle (HMSS) protocol is supported.
+    </ResponseField>
+    
+    <ResponseField name="trus_tee_supported" type="bool">
+      Whether the TrusTEE protocol is supported.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="data_availability_intervals" type="DataAvailabilityMapEntry[]">
+  A map of `ModelLine` resource name to data availability interval.
+  
+  <Expandable title="DataAvailabilityMapEntry fields">
+    <ResponseField name="key" type="string" required>
+      Resource name of a `ModelLine`.
+    </ResponseField>
+    
+    <ResponseField name="value" type="Interval" required>
+      Interval for when data is guaranteed to be available for a `Requisition` fulfillment for the `ModelLine` indicated by `key`.
+      
+      A `DataProvider` must only specify availability for intervals when they are guaranteed to have the data available to fulfill any `Requisition` within that interval.
+      
+      This interval must be fully contained by the active range of the corresponding `ModelLine`.
+      
+      If this field is specified, both `start_time` and `end_time` must be set.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Methods
+
+### GetDataProvider
+
+Returns the `DataProvider` with the specified resource key.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+**Response**
+
+Returns a `DataProvider` resource.
+
+**Example**
+
+```proto
+message GetDataProviderRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+---
+
+### ReplaceDataProviderRequiredDuchies
+
+Replaces the `required_duchies` field in a `DataProvider` resource.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="required_duchies" type="string[]">
+  Replacement for the `required_duchies` field. Resource names of Duchies.
+</ParamField>
+
+**Response**
+
+Returns the updated `DataProvider` resource.
+
+**Example**
+
+```proto
+message ReplaceDataProviderRequiredDuchiesRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated string required_duchies = 2;
+}
+```
+
+**Usage Notes**
+
+- This is a full replacement operation, not an incremental update.
+- All existing required duchies will be replaced with the new list.
+- Required duchies must participate in all computations involving this DataProvider.
+
+---
+
+### ReplaceDataAvailabilityIntervals
+
+Replaces `data_availability_intervals`.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="data_availability_intervals" type="DataAvailabilityMapEntry[]">
+  New value for `data_availability_intervals`.
+</ParamField>
+
+**Response**
+
+Returns the updated `DataProvider` resource.
+
+**Example**
+
+```proto
+message ReplaceDataAvailabilityIntervalsRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated DataProvider.DataAvailabilityMapEntry data_availability_intervals = 2;
+}
+```
+
+**Usage Notes**
+
+- This is a full replacement operation for all model line availability intervals.
+- Each entry maps a ModelLine resource name to a data availability interval.
+- The interval indicates when the DataProvider guarantees data is available for that ModelLine.
+
+---
+
+### ReplaceDataAvailabilityInterval
+
+Replaces `data_availability_interval` for a `DataProvider` resource.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="data_availability_interval" type="Interval" required>
+  New value for `data_availability_interval`.
+  
+  Both `start_time` and `end_time` must be set.
+</ParamField>
+
+**Response**
+
+Returns the updated `DataProvider` resource.
+
+**Example**
+
+```proto
+message ReplaceDataAvailabilityIntervalRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  google.type.Interval data_availability_interval = 2 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**Usage Notes**
+
+- This method updates the deprecated `data_availability_interval` field.
+- Use `ReplaceDataAvailabilityIntervals` for the newer per-ModelLine approach.
+- Both `start_time` and `end_time` must be specified in the interval.
+
+---
+
+### ReplaceDataProviderCapabilities
+
+Replaces the `capabilities` field in a `DataProvider` resource.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="capabilities" type="Capabilities">
+  New value for `capabilities`.
+  
+  <Expandable title="Capabilities fields">
+    <ParamField name="honest_majority_share_shuffle_supported" type="bool">
+      Whether the Honest Majority Share Shuffle (HMSS) protocol is supported.
+    </ParamField>
+    
+    <ParamField name="trus_tee_supported" type="bool">
+      Whether the TrusTEE protocol is supported.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response**
+
+Returns the updated `DataProvider` resource.
+
+**Example**
+
+```proto
+message ReplaceDataProviderCapabilitiesRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  DataProvider.Capabilities capabilities = 2;
+}
+```
+
+**Usage Notes**
+
+- Capabilities indicate which measurement protocols the DataProvider supports.
+- The CMMS uses these capabilities at measurement creation time to select appropriate protocols.
+- This is a full replacement operation.
+
+## Data Availability Management
+
+### Understanding Data Availability
+
+Data availability intervals tell the system when the DataProvider has data available to fulfill requisitions:
+
+1. **Per-ModelLine Intervals** (`data_availability_intervals`): Modern approach where availability is specified per ModelLine.
+2. **Global Interval** (`data_availability_interval`): Legacy approach with a single interval for all data.
+
+### Best Practices
+
+- **Conservative Intervals**: Only specify intervals where you're guaranteed to have data available.
+- **Regular Updates**: Update availability intervals as your data retention policies change.
+- **ModelLine Specificity**: Use per-ModelLine intervals for more accurate availability tracking.
+- **Interval Constraints**: Ensure intervals fall within the active range of the corresponding ModelLine.
+
+## Protocol Capabilities
+
+### Supported Protocols
+
+1. **Honest Majority Share Shuffle (HMSS)**
+   - Efficient protocol for large-scale measurements
+   - Requires honest majority assumption
+   - Set `honest_majority_share_shuffle_supported = true` to enable
+
+2. **TrusTEE**
+   - Trusted Execution Environment based protocol
+   - Enhanced security guarantees
+   - Set `trus_tee_supported = true` to enable
+
+### Updating Capabilities
+
+When your infrastructure changes:
+
+1. Assess which protocols your systems can support
+2. Test protocol implementations thoroughly
+3. Use `ReplaceDataProviderCapabilities` to update
+4. Monitor measurements to ensure protocol compatibility
+
+## Required Duchies
+
+Duchies are computation nodes in the system. Some DataProviders may require specific duchies for compliance or performance reasons:
+
+- **Compliance**: Certain duchies may be in specific jurisdictions
+- **Performance**: Duchies may have different computational capabilities
+- **Availability**: Required duchies must be available for all measurements
+
+### Managing Required Duchies
+
+1. Identify which duchies meet your requirements
+2. Use `ReplaceDataProviderRequiredDuchies` to set the list
+3. All measurements involving this DataProvider will include these duchies

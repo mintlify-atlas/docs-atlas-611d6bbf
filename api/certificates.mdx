@@ -1,0 +1,398 @@
+---
+title: "Certificates API"
+description: "Service for managing X.509 certificates"
+---
+
+The Certificates service provides methods for managing X.509 certificates, which are used for cryptographic operations and identity verification in the Cross-Media Measurement system.
+
+## Resource
+
+### Certificate
+
+Resource representing an X.509 certificate.
+
+**Resource Patterns:**
+- `dataProviders/{data_provider}/certificates/{certificate}`
+- `duchies/{duchy}/certificates/{certificate}`
+- `measurementConsumers/{measurement_consumer}/certificates/{certificate}`
+- `modelProviders/{model_provider}/certificates/{certificate}`
+
+<ResponseField name="name" type="string" required>
+  Resource name.
+  
+  The resource ID alias "preferred" may be used in place of the certificate ID to refer to the preferred Certificate.
+  
+  Examples:
+  - `measurementConsumers/mc-123/certificates/cert-456`
+  - `dataProviders/dp-789/certificates/preferred`
+</ResponseField>
+
+<ResponseField name="x509_der" type="bytes" required>
+  X.509 certificate in DER format. Required. Immutable.
+</ResponseField>
+
+<ResponseField name="revocation_state" type="RevocationState">
+  RFC 5280 revocation state of the certificate reported by an API caller.
+  
+  If specified, it means that the certificate is not currently valid. Output-only.
+  
+  <Note>
+    This is not guaranteed to reflect the actual revocation state determined by the issuing certificate authority.
+  </Note>
+  
+  Possible values:
+  - `REVOCATION_STATE_UNSPECIFIED` - Default value
+  - `HOLD` - Certificate is on hold and therefore invalid, possibly temporarily
+  - `REVOKED` - Certificate has been revoked (terminal state)
+</ResponseField>
+
+<ResponseField name="subject_key_identifier" type="bytes">
+  X.509 v3 subject key identifier. Output-only.
+</ResponseField>
+
+## Methods
+
+### GetCertificate
+
+Returns the Certificate with the specified resource name.
+
+<ParamField path="name" type="string" required>
+  Resource name of the Certificate.
+  
+  Format: `{parent}/certificates/{certificate}`
+  
+  The certificate ID can be "preferred" to get the preferred certificate.
+</ParamField>
+
+<ResponseField name="response" type="Certificate">
+  The Certificate resource.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message GetCertificateRequest {
+  string name = 1;  // "measurementConsumers/mc-123/certificates/cert-456"
+                   // or "dataProviders/dp-789/certificates/preferred"
+}
+```
+
+#### Error Conditions
+
+- `NOT_FOUND` - Certificate not found
+- `INVALID_ARGUMENT` - Invalid resource name format
+
+---
+
+### CreateCertificate
+
+Creates (adds) a Certificate.
+
+<ParamField path="parent" type="string" required>
+  Name of the parent resource.
+  
+  Can be one of:
+  - `dataProviders/{data_provider}`
+  - `duchies/{duchy}`
+  - `measurementConsumers/{measurement_consumer}`
+  - `modelProviders/{model_provider}`
+</ParamField>
+
+<ParamField body="certificate" type="Certificate" required>
+  The Certificate to create.
+  
+  The `name` field will be ignored, and the system will assign an ID.
+  
+  <Expandable title="Certificate fields">
+    <ParamField name="x509_der" type="bytes" required>
+      X.509 certificate in DER format. This is immutable after creation.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="Certificate">
+  The created Certificate resource.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message CreateCertificateRequest {
+  string parent = 1;        // "measurementConsumers/mc-123"
+  Certificate certificate = 2;
+}
+
+message Certificate {
+  bytes x509_der = 2;  // DER-encoded X.509 certificate bytes
+}
+```
+
+#### Example Response
+
+```proto
+message Certificate {
+  string name = 1;                      // "measurementConsumers/mc-123/certificates/cert-456"
+  bytes x509_der = 2;                   // DER-encoded certificate
+  bytes subject_key_identifier = 4;     // Extracted from certificate
+}
+```
+
+#### Error Conditions
+
+- `INVALID_ARGUMENT` - Invalid certificate data or malformed X.509
+- `NOT_FOUND` - Parent resource not found
+- `PERMISSION_DENIED` - Caller lacks permission to create certificates for parent
+
+---
+
+### ListCertificates
+
+Lists Certificate resources.
+
+<ParamField path="parent" type="string" required>
+  Name of the parent resource.
+  
+  Format: One of the parent resource patterns listed above.
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of resources to return.
+  
+  The service may return fewer than this value. If unspecified, at most 50 resources will be returned. The maximum value is 1000; values above the maximum will be coerced to the maximum.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token, received from a previous call.
+  
+  When paginating, all other request parameters must match those of the call that provided the page token.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Filter criteria for this request.
+  
+  Repeated fields are treated as logical ORs, and multiple fields specified as logical ANDs.
+  
+  <Expandable title="Filter fields">
+    <ParamField name="subject_key_identifiers" type="repeated bytes">
+      Matches against the `subject_key_identifier` field.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="certificates" type="repeated Certificate">
+  List of Certificate resources.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token, which can be sent as `page_token` to retrieve the next page.
+  
+  If this field is omitted, there are no subsequent pages.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message ListCertificatesRequest {
+  string parent = 1;      // "measurementConsumers/mc-123"
+  int32 page_size = 2;    // 50
+  string page_token = 3;  // "" (empty for first page)
+  
+  message Filter {
+    repeated bytes subject_key_identifiers = 1;
+  }
+  Filter filter = 4;
+}
+```
+
+#### Example Response
+
+```proto
+message ListCertificatesResponse {
+  repeated Certificate certificates = 1;  // Array of certificates
+  string next_page_token = 2;             // Token for next page, or empty
+}
+```
+
+#### Filtering by Subject Key Identifier
+
+```proto
+ListCertificatesRequest {
+  parent: "measurementConsumers/mc-123"
+  filter: {
+    subject_key_identifiers: [
+      "\x01\x02\x03...",  // First subject key ID
+      "\x04\x05\x06..."   // Second subject key ID (OR)
+    ]
+  }
+}
+```
+
+---
+
+### RevokeCertificate
+
+Revokes a Certificate by setting its revocation state.
+
+<ParamField path="name" type="string" required>
+  Resource name of the Certificate.
+  
+  Format: `{parent}/certificates/{certificate}`
+</ParamField>
+
+<ParamField body="revocation_state" type="RevocationState" required>
+  Revocation state to set.
+  
+  Valid values:
+  - `HOLD` - Place certificate on hold (temporarily invalid)
+  - `REVOKED` - Permanently revoke the certificate
+</ParamField>
+
+<ResponseField name="response" type="Certificate">
+  The updated Certificate resource with revocation state set.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message RevokeCertificateRequest {
+  string name = 1;                              // "measurementConsumers/mc-123/certificates/cert-456"
+  Certificate.RevocationState revocation_state = 2;  // HOLD or REVOKED
+}
+```
+
+#### Error Conditions
+
+- `NOT_FOUND` - Certificate not found
+- `INVALID_ARGUMENT` - Invalid revocation state
+- `PERMISSION_DENIED` - Caller lacks permission to revoke the certificate
+- `FAILED_PRECONDITION` - Certificate already in terminal revocation state
+
+---
+
+### ReleaseCertificateHold
+
+Releases a Certificate with a revocation state of `HOLD` by clearing its revocation state.
+
+<ParamField path="name" type="string" required>
+  Resource name of the Certificate.
+  
+  Format: `{parent}/certificates/{certificate}`
+</ParamField>
+
+<ResponseField name="response" type="Certificate">
+  The updated Certificate resource with revocation state cleared.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message ReleaseCertificateHoldRequest {
+  string name = 1;  // "measurementConsumers/mc-123/certificates/cert-456"
+}
+```
+
+#### Error Conditions
+
+- `NOT_FOUND` - Certificate not found
+- `FAILED_PRECONDITION` - Certificate is not in HOLD state
+- `PERMISSION_DENIED` - Caller lacks permission to release the certificate
+
+## Usage Patterns
+
+### Creating and Managing Certificates
+
+1. **Create a certificate:**
+
+```proto
+CreateCertificateRequest {
+  parent: "measurementConsumers/mc-123"
+  certificate: {
+    x509_der: <DER-encoded certificate bytes>
+  }
+}
+```
+
+2. **Get the preferred certificate:**
+
+```proto
+GetCertificateRequest {
+  name: "measurementConsumers/mc-123/certificates/preferred"
+}
+```
+
+3. **List all certificates for a parent:**
+
+```proto
+ListCertificatesRequest {
+  parent: "measurementConsumers/mc-123"
+  page_size: 50
+}
+```
+
+### Certificate Revocation Workflow
+
+1. **Temporarily suspend a certificate:**
+
+```proto
+RevokeCertificateRequest {
+  name: "measurementConsumers/mc-123/certificates/cert-456"
+  revocation_state: HOLD
+}
+```
+
+2. **Release the hold if issue resolved:**
+
+```proto
+ReleaseCertificateHoldRequest {
+  name: "measurementConsumers/mc-123/certificates/cert-456"
+}
+```
+
+3. **Permanently revoke if compromised:**
+
+```proto
+RevokeCertificateRequest {
+  name: "measurementConsumers/mc-123/certificates/cert-456"
+  revocation_state: REVOKED
+}
+```
+
+<Warning>
+  Once a certificate is in `REVOKED` state, it cannot be released. This is a terminal state.
+</Warning>
+
+### Filtering Certificates
+
+Find certificates by subject key identifier:
+
+```proto
+ListCertificatesRequest {
+  parent: "dataProviders/dp-789"
+  filter: {
+    subject_key_identifiers: [<bytes>]
+  }
+}
+```
+
+## Revocation States
+
+Certificates can have the following revocation states:
+
+| State | Description | Reversible |
+|-------|-------------|------------|
+| `REVOCATION_STATE_UNSPECIFIED` | No revocation (valid) | N/A |
+| `HOLD` | Temporarily suspended | Yes, via `ReleaseCertificateHold` |
+| `REVOKED` | Permanently revoked | No (terminal state) |
+
+<Info>
+  The revocation state is reported by API callers and may not reflect the actual state determined by the certificate authority.
+</Info>
+
+## Best Practices
+
+- Use the "preferred" alias to always get the current active certificate
+- Store certificates in DER format before uploading
+- Use `HOLD` state for temporary suspensions during investigation
+- Use `REVOKED` state only when permanently retiring a certificate
+- Monitor certificate expiration dates outside the API
+- Maintain multiple certificates and rotate them before expiration

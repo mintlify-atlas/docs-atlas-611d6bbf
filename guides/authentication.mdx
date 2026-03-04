@@ -1,0 +1,150 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate with the Cross-Media Measurement API"
+---
+
+The Cross-Media Measurement API uses OpenID Connect (OIDC) for authentication. This guide explains the authentication flow and how to obtain and use ID tokens for API calls.
+
+## Overview
+
+Authentication in the Cross-Media Measurement API follows a two-phase process:
+
+1. **Obtaining an ID Token** - Get an ID token from the OpenID Provider
+2. **Making Authenticated API Calls** - Use the ID token in your API requests
+
+## Authentication Flow
+
+The authentication flow consists of two main phases: obtaining an ID token from the OpenID Provider, and using that token to make authenticated API calls.
+
+## Obtaining an ID Token
+
+Follow these steps to obtain an ID token for API authentication:
+
+<Steps>
+  <Step title="Call the Authenticate method">
+    Initiate the authentication process by calling the `Authenticate` API method.
+    
+    ```bash
+    # Example authenticate request
+    curl -X POST https://api.example.com/v2alpha/authenticate
+    ```
+  </Step>
+  
+  <Step title="Receive authentication request URI">
+    The API server performs the following:
+    - Generates a random `nonce` value
+    - Creates a unique `state` identifier
+    - Persists these values in the database for later validation
+    - Builds an authentication request URI with these parameters
+    - Returns the URI in the `Authenticate` response
+    
+    ```json
+    {
+      "authenticationRequestUri": "https://openid-provider.example.com/auth?nonce=...&state=..."
+    }
+    ```
+  </Step>
+  
+  <Step title="Navigate to the authentication URI">
+    Open the returned authentication request URI in a web browser. This redirects you to the OpenID Provider's login page.
+  </Step>
+  
+  <Step title="Log in with your credentials">
+    Complete the login process with your user credentials at the OpenID Provider.
+  </Step>
+  
+  <Step title="Receive authentication response">
+    After successful login, the OpenID Provider returns an authentication response to your user agent (browser).
+  </Step>
+  
+  <Step title="Extract the ID Token">
+    Parse and extract the ID Token from the authentication response. This token will be used for subsequent API calls.
+    
+    <Note>
+      Store the ID token securely. You'll need to include it in the authorization header of all authenticated API requests.
+    </Note>
+  </Step>
+</Steps>
+
+## Making Authenticated API Calls
+
+Once you have an ID token, use it to make authenticated API calls:
+
+<Steps>
+  <Step title="Include ID Token in API call">
+    Pass your ID token in the call credentials when making API requests.
+    
+    ```bash
+    curl -X GET https://api.example.com/v2alpha/measurements \
+      -H "Authorization: Bearer YOUR_ID_TOKEN"
+    ```
+  </Step>
+  
+  <Step title="Server validates the token">
+    The API server performs the following validation:
+    - Reads the `state` value from the ID token
+    - Retrieves the corresponding `nonce` value from the database
+    - Validates the ID token using the `nonce` value
+    - Verifies the token signature and expiration
+  </Step>
+  
+  <Step title="Receive API response">
+    If authentication is successful, the API server executes the requested operation and returns the response.
+    
+    <Warning>
+      If the ID token is invalid or expired, the API will return a `401 Unauthorized` error. You'll need to obtain a new ID token by repeating the authentication flow.
+    </Warning>
+  </Step>
+</Steps>
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="Token Storage">
+    - Store ID tokens securely in your application
+    - Never expose tokens in client-side code or logs
+    - Use secure storage mechanisms appropriate for your platform
+  </Accordion>
+  
+  <Accordion title="Token Expiration">
+    - ID tokens have a limited lifetime
+    - Implement token refresh logic to handle expiration
+    - Always check token validity before making API calls
+  </Accordion>
+  
+  <Accordion title="HTTPS Only">
+    - Always use HTTPS for all API communications
+    - Never send ID tokens over unencrypted connections
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized Error">
+    If you receive a 401 error:
+    - Check that your ID token is included in the Authorization header
+    - Verify the token hasn't expired
+    - Ensure the token format is correct: `Bearer YOUR_ID_TOKEN`
+    - Obtain a fresh token if necessary
+  </Accordion>
+  
+  <Accordion title="Invalid Nonce Error">
+    If nonce validation fails:
+    - The token may have been tampered with
+    - The state/nonce pair may have expired in the database
+    - Re-initiate the authentication flow to obtain a new token
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Certificates" icon="certificate" href="/guides/certificates">
+    Learn about X.509 certificates used for digital signatures
+  </Card>
+  
+  <Card title="Measurement Consumer Setup" icon="user-plus" href="/guides/measurement-consumer-setup">
+    Set up your MeasurementConsumer account
+  </Card>
+</CardGroup>

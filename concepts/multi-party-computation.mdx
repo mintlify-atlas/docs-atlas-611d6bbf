@@ -1,0 +1,411 @@
+---
+title: Multi-Party Computation
+description: Understanding privacy-preserving computation protocols in the Cross-Media Measurement API
+---
+
+## Overview
+
+**Multi-Party Computation (MPC)** enables multiple parties to jointly compute a function over their private inputs without revealing those inputs to each other. In the Cross-Media Measurement API, MPC allows DataProviders to contribute event data to measurements while keeping individual user data private from other participants.
+
+## Why MPC?
+
+Traditional measurement approaches require sharing raw user-level data, creating privacy risks:
+
+❌ **Without MPC:**
+- DataProviders must share raw event logs
+- Central party sees all user-level data
+- High risk of data breaches or misuse
+- Regulatory compliance challenges
+
+✅ **With MPC:**
+- Each DataProvider keeps raw data private
+- Only aggregate results are revealed
+- No single party sees individual user data
+- Built-in differential privacy guarantees
+
+<Info>
+MPC protocols are cryptographically secure: even if some participants collude, individual user data remains protected as long as at least one honest participant exists.
+</Info>
+
+## MPC Architecture
+
+The Cross-Media Measurement API uses a **Duchy-based architecture**:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  DataProvider   │     │  DataProvider   │     │  DataProvider   │
+│       A         │     │       B         │     │       C         │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         │ Encrypted Sketches    │                       │
+         ▼                       ▼                       ▼
+┌────────────────────────────────────────────────────────────────┐
+│                      Duchies (Workers)                          │
+│  ┌──────────┐      ┌──────────┐      ┌──────────┐             │
+│  │ Duchy 1  │◄────►│ Duchy 2  │◄────►│ Duchy 3  │             │
+│  └──────────┘      └──────────┘      └──────────┘             │
+│         Multi-Party Computation Protocol                        │
+└────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+                    ┌──────────────────┐
+                    │ Encrypted Result │
+                    └──────────────────┘
+                               │
+                               ▼
+                    ┌──────────────────┐
+                    │ Measurement      │
+                    │ Consumer         │
+                    └──────────────────┘
+```
+
+### Key Participants
+
+**DataProviders**
+- Encrypt their event data into cryptographic sketches
+- Upload encrypted sketches to Duchies
+- Never share raw user-level data
+
+**Duchies (Workers)**
+- Independent, non-colluding computation workers
+- Execute MPC protocols to aggregate encrypted data
+- Operate on encrypted data without decryption
+- Jointly produce encrypted results
+
+**MeasurementConsumer**
+- Receives encrypted results
+- Decrypts using their private key
+- Cannot access individual DataProvider data
+
+<Note>
+Duchies are operated by separate entities with strong non-collusion guarantees. The system remains secure as long as at least one Duchy is honest.
+</Note>
+
+## Supported MPC Protocols
+
+The API supports multiple MPC protocols, each optimized for different scenarios:
+
+### Liquid Legions V2
+
+**Purpose:** Reach and frequency measurements
+
+```protobuf
+message LiquidLegionsV2Methodology {}
+```
+
+**Protocol Configuration:**
+```protobuf
+message LiquidLegionsV2 {
+  LiquidLegionsSketchParams sketch_params = 1;
+  DifferentialPrivacyParams data_provider_noise = 2;
+  int32 elliptic_curve_id = 3;
+  NoiseMechanism noise_mechanism = 5;
+}
+
+message LiquidLegionsSketchParams {
+  double decay_rate = 1;
+  int64 max_size = 2;
+  int64 sampling_indicator_size = 3;
+}
+```
+
+**Key Features:**
+- Uses elliptic curve cryptography for secure aggregation
+- Supports both reach and frequency distribution
+- Configurable sketch parameters for accuracy/performance trade-offs
+- Multiple noise mechanisms (geometric, discrete Gaussian)
+
+**How It Works:**
+1. DataProviders create **Liquid Legions sketches** of their event data
+2. Sketches are encrypted with Duchy public keys
+3. Duchies perform **homomorphic operations** to merge sketches
+4. Multiple rounds of **shuffling and re-encryption** ensure privacy
+5. Final result is encrypted for MeasurementConsumer
+
+<Tip>
+Liquid Legions V2 provides excellent accuracy for large populations and supports complex frequency distributions.
+</Tip>
+
+### Reach-Only Liquid Legions V2
+
+**Purpose:** Optimized reach-only measurements
+
+```protobuf
+message ReachOnlyLiquidLegionsV2Methodology {}
+```
+
+**Protocol Configuration:**
+```protobuf
+message ReachOnlyLiquidLegionsV2 {
+  ReachOnlyLiquidLegionsSketchParams sketch_params = 1;
+  DifferentialPrivacyParams data_provider_noise = 2;
+  int32 elliptic_curve_id = 3;
+  NoiseMechanism noise_mechanism = 4;
+}
+
+message ReachOnlyLiquidLegionsSketchParams {
+  double decay_rate = 1;
+  int64 max_size = 2;
+}
+```
+
+**Key Features:**
+- Simplified sketch structure for reach-only computations
+- Faster computation than full Liquid Legions V2
+- Lower bandwidth requirements
+- Same privacy guarantees
+
+**When to Use:**
+- Only need unique reach (no frequency distribution)
+- Large-scale measurements requiring fast results
+- Bandwidth-constrained environments
+
+### Honest Majority Share Shuffle (HMSS)
+
+**Purpose:** Alternative MPC protocol with different security model
+
+```protobuf
+message HonestMajorityShareShuffleMethodology {
+  int64 frequency_vector_size = 1;  // Required
+}
+```
+
+**Protocol Configuration:**
+```protobuf
+message HonestMajorityShareShuffle {
+  NoiseMechanism noise_mechanism = 2;
+  int32 ring_modulus = 3;
+}
+```
+
+**Key Features:**
+- Requires honest majority of workers (>50% must be honest)
+- **Secret sharing** based approach
+- Supports VID sampling interval wrapping
+- Configurable ring modulus for security
+
+**Security Model:**
+- Secure as long as majority of Duchies are honest
+- Different threat model than Liquid Legions
+- May offer better performance in some scenarios
+
+<Info>
+The ring modulus must be greater than (1 + maximum_frequency × number of DataProviders) for reach and frequency measurements.
+</Info>
+
+### TrusTEE
+
+**Purpose:** Trusted execution environment based computation
+
+```protobuf
+message TrusTee {}
+```
+
+**Key Features:**
+- Uses hardware-based trusted execution environments (TEEs)
+- Data processed in secure enclaves
+- Attestation-based trust model
+- Lower communication overhead
+
+**When to Use:**
+- DataProviders support TEE fulfillment
+- Need for faster computation
+- Hardware-based security is acceptable
+
+<Note>
+TrusTEE availability depends on DataProvider capabilities. Check the `capabilities` field in the DataProvider resource.
+</Note>
+
+## Duchy Interaction
+
+Requisitions include Duchy-specific parameters for each worker:
+
+```protobuf
+message DuchyEntry {
+  string key = 1;  // Duchy resource name
+  
+  message Value {
+    string duchy_certificate = 1;
+    oneof protocol {
+      LiquidLegionsV2 liquid_legions_v2 = 2;
+      LiquidLegionsV2 reach_only_liquid_legions_v2 = 3;
+      HonestMajorityShareShuffle honest_majority_share_shuffle = 4;
+      TrusTee trus_tee = 5;
+    }
+  }
+  Value value = 2;
+}
+```
+
+### Liquid Legions V2 Duchy Info
+
+```protobuf
+message LiquidLegionsV2 {
+  SignedMessage el_gamal_public_key = 1;
+}
+```
+
+DataProviders encrypt sketches using each Duchy's ElGamal public key.
+
+### HMSS Duchy Info
+
+```protobuf
+message HonestMajorityShareShuffle {
+  SignedMessage public_key = 1;  // Optional
+}
+```
+
+If `public_key` is specified, DataProviders use it to encrypt the random seed.
+
+## Protocol Selection
+
+The system automatically selects a protocol based on several factors:
+
+### Selection Criteria
+
+1. **Measurement Type**
+   - REACH_AND_FREQUENCY → Liquid Legions V2 or HMSS
+   - REACH → Reach-Only Liquid Legions V2 or HMSS
+   - IMPRESSION/DURATION → Direct protocol
+   - POPULATION → Direct protocol
+
+2. **DataProvider Capabilities**
+   ```protobuf
+   message Capabilities {
+     bool honest_majority_share_shuffle_supported = 1;
+     bool trus_tee_supported = 2;
+   }
+   ```
+   Protocol must be supported by all participating DataProviders.
+
+3. **Available Duchies**
+   - Sufficient Duchies must be available
+   - Required Duchies (specified in DataProvider) must be included
+
+4. **Privacy Parameters**
+   - Noise mechanism compatibility
+   - Privacy budget requirements
+
+<Tip>
+The selected protocol is available in the `protocol_config` field of the Measurement resource.
+</Tip>
+
+## Privacy Guarantees
+
+### Cryptographic Security
+
+MPC protocols provide cryptographic guarantees:
+
+**Liquid Legions V2:**
+- Secure against semi-honest adversaries
+- Semantic security from elliptic curve cryptography
+- Privacy preserved even if N-1 Duchies collude
+
+**Honest Majority Share Shuffle:**
+- Secure against semi-honest adversaries
+- Requires >50% honest Duchies
+- Information-theoretic security from secret sharing
+
+### Differential Privacy
+
+All protocols include differential privacy noise:
+
+```protobuf
+message DifferentialPrivacyParams {
+  double epsilon = 1;  // Privacy budget
+  double delta = 2;    // Failure probability
+}
+```
+
+**Noise Application:**
+- **Data Provider Noise:** Added by DataProviders before encryption
+- **Global Noise:** Added during aggregation
+- **Combined Protection:** Multiple noise layers ensure privacy
+
+<Info>
+Differential privacy provides mathematical privacy guarantees even if an adversary has arbitrary side information.
+</Info>
+
+See [Differential Privacy](/concepts/differential-privacy) for detailed explanation.
+
+## Requisition Fulfillment
+
+DataProviders fulfill requisitions differently based on protocol:
+
+### MPC Protocols (Liquid Legions, HMSS)
+
+1. **Process events** according to RequisitionSpec
+2. **Create sketch** representing event data
+3. **Apply DP noise** at DataProvider level
+4. **Encrypt sketch** using Duchy public keys
+5. **Upload** encrypted sketch via RequisitionFulfillment API
+
+### Direct Protocol
+
+1. **Compute result directly** (reach, impression count, etc.)
+2. **Apply DP noise**
+3. **Sign result** with DataProvider certificate
+4. **Encrypt result** for MeasurementConsumer
+5. **Upload** via FulfillDirectRequisition API
+
+<Note>
+Direct protocol means the DataProvider computes the result themselves without MPC. This is appropriate for single-party measurements or simple aggregations.
+</Note>
+
+## Performance Considerations
+
+### Computation Time
+
+MPC computation time depends on:
+
+- **Protocol choice:** Reach-only is faster than full R&F
+- **Number of DataProviders:** More providers = longer computation
+- **Sketch size:** Larger sketches = more processing
+- **Number of Duchies:** More workers = more coordination overhead
+
+**Typical Times:**
+- Reach-only: Minutes to tens of minutes
+- Reach & Frequency: Tens of minutes to hours
+- Direct: Seconds to minutes
+
+### Bandwidth
+
+Key bandwidth consumers:
+
+- **Sketch upload:** DataProviders → Duchies
+- **Inter-Duchy communication:** Shuffling and aggregation
+- **Result download:** Duchies → MeasurementConsumer
+
+**Optimization Strategies:**
+- Use reach-only when frequency not needed
+- Tune sketch parameters for size/accuracy trade-off
+- Use VID sampling for large populations
+
+## Best Practices
+
+### Protocol Selection
+
+1. **Use reach-only** when you don't need frequency distribution
+2. **Consider HMSS** for alternative security model
+3. **Check DataProvider capabilities** before expecting specific protocols
+4. **Understand security assumptions** of each protocol
+
+### Security
+
+1. **Verify Duchy independence** in your deployment
+2. **Monitor certificate status** for all participants
+3. **Use strong elliptic curves** (prime256v1 or better)
+4. **Apply appropriate DP parameters** for your privacy needs
+
+### Performance
+
+1. **Choose appropriate sketch sizes** balancing accuracy and speed
+2. **Use VID sampling** for very large populations
+3. **Batch measurements** when possible
+4. **Monitor computation progress** via Measurement state
+
+## Related Concepts
+
+- [Measurements](/concepts/measurements) - Understanding measurement types and lifecycle
+- [Differential Privacy](/concepts/differential-privacy) - Privacy protection mechanisms
+- [Resource Model](/concepts/resource-model) - Understanding Duchies and DataProviders

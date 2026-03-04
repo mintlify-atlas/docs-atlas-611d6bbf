@@ -1,0 +1,125 @@
+---
+title: Model Suites API
+description: API reference for managing Model Suite resources
+---
+
+The Model Suites API allows you to create, retrieve, and list model suites. A model suite is a collection of model lines provided by a model provider.
+
+## Resource
+
+### ModelSuite
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `modelProviders/{model_provider}/modelSuites/{model_suite}`
+</ResponseField>
+
+<ResponseField name="display_name" type="string" required>
+  Human-readable nickname for this ModelSuite
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable string to describe the usage of this model suite
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelSuite was created
+</ResponseField>
+
+## Methods
+
+### CreateModelSuite
+
+Creates a new `ModelSuite`.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelProvider.
+  
+  Format: `modelProviders/{model_provider}`
+</ParamField>
+
+<ParamField body="model_suite" type="ModelSuite" required>
+  The ModelSuite to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `display_name`: Human-readable nickname
+</ParamField>
+
+**Response**
+
+Returns the created `ModelSuite` resource.
+
+**Example Request**
+
+```proto
+CreateModelSuiteRequest {
+  parent: "modelProviders/123"
+  model_suite: {
+    display_name: "Production Model Suite"
+    description: "Primary model suite for production workloads"
+  }
+}
+```
+
+### GetModelSuite
+
+Returns the `ModelSuite` with the specified resource key.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelSuite to retrieve.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}`
+</ParamField>
+
+**Response**
+
+Returns a `ModelSuite` resource.
+
+**Example Request**
+
+```proto
+GetModelSuiteRequest {
+  name: "modelProviders/123/modelSuites/456"
+}
+```
+
+### ListModelSuites
+
+Lists `ModelSuite` resources for a given ModelProvider.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelProvider.
+  
+  Format: `modelProviders/{model_provider}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelSuites to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelSuites will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelSuites` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_suites" type="ModelSuite[]">
+  List of ModelSuite resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelSuitesRequest {
+  parent: "modelProviders/123"
+  page_size: 50
+}
+```

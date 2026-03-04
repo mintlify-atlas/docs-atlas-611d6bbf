@@ -1,0 +1,67 @@
+---
+title: Exchanges API
+description: API reference for managing Exchange resources
+---
+
+The Exchanges API allows you to retrieve exchange resources. An exchange represents an instance of a RecurringExchange for a single date.
+
+## Resource
+
+### Exchange
+
+Resource that represents an instance of a `RecurringExchange` for a single date.
+
+<ResponseField name="name" type="string" required>
+  Resource name with one of these patterns:
+  - `recurringExchanges/{recurring_exchange}/exchanges/{exchange}`
+  - `dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}`
+  - `modelProviders/{model_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}`
+</ResponseField>
+
+<ResponseField name="date" type="Date" required>
+  Date of the Exchange. Must be a complete date (no field can be unset/zero).
+</ResponseField>
+
+<ResponseField name="state" type="State" output>
+  State of this Exchange.
+  
+  **Enum values:**
+  - `STATE_UNSPECIFIED`: Default value used if the state is omitted
+  - `ACTIVE`: The exchange has not yet reached a terminal state
+  - `SUCCEEDED`: The exchange has completed successfully
+  - `FAILED`: The exchange has failed
+</ResponseField>
+
+<ResponseField name="audit_trail_hash" type="bytes">
+  SHA256 hash of the audit trail, if uploaded.
+</ResponseField>
+
+<ResponseField name="graphviz_representation" type="string" output>
+  DOT language representation of the Exchange. This gives the status and relationship between all steps.
+  
+  See https://graphviz.org/doc/info/lang.html for the language specification.
+</ResponseField>
+
+## Methods
+
+### GetExchange
+
+Returns the `Exchange` with the specified resource key.
+
+<ParamField path="name" type="string" required>
+  Resource name of the Exchange to retrieve.
+  
+  Format: `recurringExchanges/{recurring_exchange}/exchanges/{exchange}` (or with dataProviders/modelProviders prefix)
+</ParamField>
+
+**Response**
+
+Returns an `Exchange` resource.
+
+**Example Request**
+
+```proto
+GetExchangeRequest {
+  name: "recurringExchanges/123/exchanges/456"
+}
+```

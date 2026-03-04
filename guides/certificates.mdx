@@ -1,0 +1,192 @@
+---
+title: "Certificates"
+description: "Understanding X.509 certificates in the Cross-Media Measurement API"
+---
+
+The Cross-Media Measurement API uses X.509 certificates for digital signatures to ensure the authenticity and integrity of measurements and data exchanges.
+
+## Overview
+
+Certificates play a critical role in the API's security model:
+
+- **Digital Signatures** - Sign measurement specifications and results
+- **Verification** - Verify the authenticity of signed messages
+- **Trust Chain** - Establish trust between MeasurementConsumers and DataProviders
+
+<Note>
+  All certificates returned by API resources are **never root certificates**. They must be verified using a certificate that has been exchanged outside of the API through a secure channel.
+</Note>
+
+## Certificate Resource
+
+Certificates are represented as API resources with the following structure:
+
+```protobuf
+message Certificate {
+  // Resource name
+  string name = 1;
+  
+  // X.509 certificate in DER format (Required, Immutable)
+  bytes x509_der = 2;
+  
+  // RFC 5280 revocation state
+  RevocationState revocation_state = 3;
+  
+  // X.509 v3 subject key identifier
+  bytes subject_key_identifier = 4;
+}
+```
+
+### Resource Names
+
+Certificates follow different naming patterns depending on the owner:
+
+- **DataProvider**: `dataProviders/{data_provider}/certificates/{certificate}`
+- **Duchy**: `duchies/{duchy}/certificates/{certificate}`
+- **MeasurementConsumer**: `measurementConsumers/{measurement_consumer}/certificates/{certificate}`
+- **ModelProvider**: `modelProviders/{model_provider}/certificates/{certificate}`
+
+<Tip>
+  You can use the alias `"preferred"` in place of the certificate ID to automatically reference the preferred certificate for a resource.
+  
+  Example: `measurementConsumers/abc123/certificates/preferred`
+</Tip>
+
+## Certificate Preference
+
+When multiple certificates exist for a resource, the API determines preference based on the following criteria (in order of importance):
+
+<Steps>
+  <Step title="Revocation Status">
+    **Not revoked** certificates are preferred over revoked ones.
+    
+    - Certificates in `REVOKED` or `HOLD` state are deprioritized
+    - Active certificates always take precedence
+  </Step>
+  
+  <Step title="Validity Period">
+    Certificates **within their validity period** are preferred.
+    
+    - Current date/time must be between the certificate's start and end dates
+    - Expired or not-yet-valid certificates are deprioritized
+  </Step>
+  
+  <Step title="Validity End Date">
+    Certificates with a **later validity end date** are preferred.
+    
+    - Longer-lived certificates are prioritized
+    - This ensures the most up-to-date certificate is used
+  </Step>
+  
+  <Step title="Validity Start Date">
+    If end dates are equal, certificates with a **later start date** are preferred.
+    
+    - More recently issued certificates take precedence
+    - This is a tiebreaker for certificates with identical validity periods
+  </Step>
+</Steps>
+
+<Note>
+  While it's expected that certificates with later end dates also have later start dates, the API does not enforce this relationship. The preference algorithm handles any ordering.
+</Note>
+
+## Certificate Revocation
+
+Certificates can be in one of three revocation states:
+
+<AccordionGroup>
+  <Accordion title="REVOCATION_STATE_UNSPECIFIED">
+    The certificate is valid and not revoked. This is the default state for active certificates.
+  </Accordion>
+  
+  <Accordion title="HOLD">
+    The certificate is temporarily on hold and considered invalid. This state may be reversible, though the API treats it as invalid for all operations.
+  </Accordion>
+  
+  <Accordion title="REVOKED">
+    The certificate has been permanently revoked. This is a terminal state - once revoked, a certificate cannot be un-revoked.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  The revocation state shown in the API reflects what has been reported by callers. It is **not guaranteed** to match the actual revocation state determined by the issuing Certificate Authority (CA). Always verify certificates against the CA's Certificate Revocation List (CRL) or Online Certificate Status Protocol (OCSP) responder for authoritative revocation status.
+</Warning>
+
+## Using Certificates
+
+### In Measurements
+
+When creating a measurement, you must specify certificates for signature verification:
+
+```json
+{
+  "measurement_consumer_certificate": "measurementConsumers/mc123/certificates/cert456",
+  "data_providers": {
+    "dataProviders/dp789": {
+      "data_provider_certificate": "dataProviders/dp789/certificates/cert101"
+    }
+  }
+}
+```
+
+### In Requisitions
+
+Requisitions reference certificates from their parent Measurement:
+
+- `measurement_consumer_certificate` - Used to verify the measurement spec
+- `data_provider_certificate` - Used to verify the result
+- `duchy_certificate` - Used to verify duchy-specific signatures
+
+### Certificate Verification
+
+When verifying a signed message:
+
+1. Extract the certificate resource from the API response
+2. Verify the certificate chain against your trusted root certificate
+3. Check the certificate hasn't been revoked
+4. Verify the signature using the certificate's public key
+5. Validate the signed content matches expectations
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Certificate Rotation" icon="rotate">
+    Regularly rotate certificates before they expire. Create new certificates while old ones are still valid to ensure smooth transitions.
+  </Card>
+  
+  <Card title="Secure Storage" icon="lock">
+    Store private keys securely. Never expose private keys through the API or in logs. Use hardware security modules (HSMs) when possible.
+  </Card>
+  
+  <Card title="Monitor Expiration" icon="clock">
+    Set up alerts for upcoming certificate expirations. Begin renewal at least 30 days before expiration.
+  </Card>
+  
+  <Card title="Verify Chain" icon="link">
+    Always verify the complete certificate chain. Don't trust certificates without validating against your root CA.
+  </Card>
+</CardGroup>
+
+## External Certificate Exchange
+
+Since the API never returns root certificates, you must:
+
+1. **Exchange root certificates out-of-band** - Use a secure channel outside the API (e.g., mutual TLS, signed email, in-person exchange)
+2. **Store trusted roots securely** - Maintain a secure trust store for root certificates
+3. **Validate certificate chains** - Always verify API-provided certificates against your trusted roots
+
+<Warning>
+  Never trust a certificate solely because it was returned by the API. Always verify it chains to a root certificate you've independently verified and trust.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    Learn about the authentication flow
+  </Card>
+  
+  <Card title="Creating Measurements" icon="chart-line" href="/guides/creating-measurements">
+    Create your first measurement with certificates
+  </Card>
+</CardGroup>

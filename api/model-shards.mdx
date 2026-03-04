@@ -1,0 +1,139 @@
+---
+title: Model Shards API
+description: API reference for managing Model Shard resources
+---
+
+The Model Shards API allows you to create, list, and delete model shards. A model shard represents a shard of a model for a DataProvider.
+
+## Resource
+
+### ModelShard
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `dataProviders/{data_provider}/modelShards/{model_shard}`
+</ResponseField>
+
+<ResponseField name="model_release" type="string" required>
+  Resource name of the ModelRelease that this is a shard of.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}`
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="model_blob" type="ModelBlob" required>
+  The blob for this model shard. This field is immutable after creation.
+  
+  <ResponseField name="model_blob.model_blob_path" type="string" required>
+    The path the model blob can be downloaded from.
+    
+    This field is immutable after creation.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelShard was created
+</ResponseField>
+
+## Methods
+
+### CreateModelShard
+
+Creates a new `ModelShard`.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="model_shard" type="ModelShard" required>
+  The ModelShard to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `model_release`: Reference to a ModelRelease
+  - `model_blob`: The model blob reference
+  - `model_blob.model_blob_path`: Path to the model blob
+</ParamField>
+
+**Response**
+
+Returns the created `ModelShard` resource.
+
+**Example Request**
+
+```proto
+CreateModelShardRequest {
+  parent: "dataProviders/123"
+  model_shard: {
+    model_release: "modelProviders/456/modelSuites/789/modelReleases/101"
+    model_blob: {
+      model_blob_path: "gs://bucket/path/to/model.pb"
+    }
+  }
+}
+```
+
+### ListModelShards
+
+Lists `ModelShard` resources for a DataProvider.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelShards to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelShards will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelShards` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_shards" type="ModelShard[]">
+  List of ModelShard resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelShardsRequest {
+  parent: "dataProviders/123"
+  page_size: 50
+}
+```
+
+### DeleteModelShard
+
+Deletes an existing `ModelShard`.
+
+<ParamField path="name" type="string" required>
+  The name of the ModelShard to delete.
+  
+  Format: `dataProviders/{data_provider}/modelShards/{model_shard}`
+</ParamField>
+
+**Response**
+
+Returns an empty response on success.
+
+**Example Request**
+
+```proto
+DeleteModelShardRequest {
+  name: "dataProviders/123/modelShards/456"
+}
+```

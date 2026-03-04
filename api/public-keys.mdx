@@ -1,0 +1,326 @@
+---
+title: "Public Keys API"
+description: "Service for managing encryption public keys"
+---
+
+The Public Keys service provides methods for managing encryption public keys used in the Cross-Media Measurement system.
+
+## Resource
+
+### PublicKey
+
+Singleton resource representing an encryption public key.
+
+**Resource Patterns:**
+- `dataProviders/{data_provider}/publicKey`
+- `measurementConsumers/{measurement_consumer}/publicKey`
+
+<Info>
+  Each parent resource has exactly one PublicKey singleton resource.
+</Info>
+
+<ResponseField name="name" type="string" required>
+  Resource name.
+  
+  Format:
+  - `dataProviders/{data_provider}/publicKey`
+  - `measurementConsumers/{measurement_consumer}/publicKey`
+</ResponseField>
+
+<ResponseField name="public_key" type="SignedMessage" required>
+  Serialized `EncryptionPublicKey` for the parent resource, which can be verified using `certificate`.
+  
+  The version of the `EncryptionPublicKey` message must match the API version used to last update this resource.
+  
+  <Expandable title="SignedMessage structure">
+    <ResponseField name="message" type="google.protobuf.Any">
+      Message to sign. Contains the serialized EncryptionPublicKey.
+      
+      Required for new requests. If not specified, use the `data` field instead (deprecated).
+    </ResponseField>
+    
+    <ResponseField name="data" type="bytes" deprecated>
+      Serialized protobuf message to sign.
+      
+      Deprecated: Use the `message` field except for legacy resources.
+    </ResponseField>
+    
+    <ResponseField name="signature" type="bytes" required>
+      Cryptographic digital signature of `message.value` (or of `data` for legacy resources).
+    </ResponseField>
+    
+    <ResponseField name="signature_algorithm_oid" type="string">
+      Object identifier (OID) of the signature algorithm in dot notation.
+      
+      Required for new requests. If not specified, this is assumed to be the signature algorithm of the accompanying certificate.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="certificate" type="string" required>
+  Resource name of the Certificate that can be used to verify `public_key`.
+  
+  This must have the same parent as the PublicKey.
+  
+  Format: `{parent}/certificates/{certificate}`
+</ResponseField>
+
+### EncryptionPublicKey
+
+The `public_key` field contains a signed `EncryptionPublicKey` message:
+
+<ResponseField name="format" type="Format" required>
+  Format of data for this public key.
+  
+  Values:
+  - `FORMAT_UNSPECIFIED` - Default value
+  - `TINK_KEYSET` - Tink Keyset format
+</ResponseField>
+
+<ResponseField name="data" type="bytes" required>
+  The format-specific key data.
+  
+  For `TINK_KEYSET` format: Serialized `google.crypto.tink.Keyset` message. Encrypted message values use Tink's wire format.
+  
+  `format` and `data` together must specify all necessary information to decrypt messages given a private key.
+</ResponseField>
+
+## Methods
+
+### UpdatePublicKey
+
+Updates the PublicKey for the specified parent.
+
+<Note>
+  This method performs a full replacement update. Partial updates are not supported.
+</Note>
+
+<ParamField body="public_key" type="PublicKey" required>
+  Resource to update.
+  
+  Must include the resource name to identify which PublicKey to update.
+  
+  <Expandable title="PublicKey fields">
+    <ParamField name="name" type="string" required>
+      Resource name identifying the PublicKey to update.
+      
+      Format: `{parent}/publicKey`
+    </ParamField>
+    
+    <ParamField name="public_key" type="SignedMessage" required>
+      The new signed encryption public key.
+    </ParamField>
+    
+    <ParamField name="certificate" type="string" required>
+      Resource name of the Certificate to use for verification.
+      
+      Must have the same parent as the PublicKey.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="PublicKey">
+  The updated PublicKey resource.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message UpdatePublicKeyRequest {
+  PublicKey public_key = 1;
+}
+
+message PublicKey {
+  string name = 1;              // "measurementConsumers/mc-123/publicKey"
+  SignedMessage public_key = 2;  // Signed EncryptionPublicKey
+  string certificate = 3;        // "measurementConsumers/mc-123/certificates/cert-456"
+}
+```
+
+#### SignedMessage Structure
+
+```proto
+message SignedMessage {
+  google.protobuf.Any message = 4;      // Contains EncryptionPublicKey
+  bytes signature = 2;                   // Digital signature
+  string signature_algorithm_oid = 3;    // e.g., "1.2.840.113549.1.1.11" for SHA256withRSA
+}
+```
+
+#### EncryptionPublicKey Structure
+
+```proto
+message EncryptionPublicKey {
+  Format format = 1;  // TINK_KEYSET
+  bytes data = 2;     // Serialized Tink Keyset
+}
+
+enum Format {
+  FORMAT_UNSPECIFIED = 0;
+  TINK_KEYSET = 1;
+}
+```
+
+#### Error Conditions
+
+- `NOT_FOUND` - Parent resource or certificate not found
+- `INVALID_ARGUMENT` - Invalid public key data, signature, or mismatched parent
+- `PERMISSION_DENIED` - Caller lacks permission to update the public key
+- `FAILED_PRECONDITION` - Certificate cannot verify the signature
+
+## Usage Patterns
+
+### Creating a Signed Public Key
+
+1. **Generate encryption key pair:**
+
+Generate a public/private key pair using your cryptographic library (e.g., Google Tink).
+
+2. **Serialize the public key:**
+
+```proto
+EncryptionPublicKey {
+  format: TINK_KEYSET
+  data: <serialized Tink Keyset bytes>
+}
+```
+
+3. **Sign the serialized key:**
+
+Sign the serialized `EncryptionPublicKey` using the private key associated with your certificate.
+
+4. **Create the SignedMessage:**
+
+```proto
+SignedMessage {
+  message: {
+    type_url: "type.googleapis.com/wfa.measurement.api.v2alpha.EncryptionPublicKey"
+    value: <serialized EncryptionPublicKey>
+  }
+  signature: <digital signature bytes>
+  signature_algorithm_oid: "1.2.840.113549.1.1.11"  // SHA256withRSA
+}
+```
+
+5. **Update the PublicKey resource:**
+
+```proto
+UpdatePublicKeyRequest {
+  public_key: {
+    name: "measurementConsumers/mc-123/publicKey"
+    public_key: <SignedMessage from step 4>
+    certificate: "measurementConsumers/mc-123/certificates/cert-456"
+  }
+}
+```
+
+### Rotating Public Keys
+
+To rotate encryption keys:
+
+1. **Generate new key pair**
+2. **Create new certificate** (if needed) via Certificates API
+3. **Update PublicKey** with new key and certificate reference
+4. **Update local systems** to use new private key for decryption
+5. **Maintain old private key** temporarily to decrypt in-flight messages
+
+```proto
+// Step 3: Update with new public key
+UpdatePublicKeyRequest {
+  public_key: {
+    name: "dataProviders/dp-789/publicKey"
+    public_key: <new SignedMessage>
+    certificate: "dataProviders/dp-789/certificates/cert-new"
+  }
+}
+```
+
+### Verifying a Public Key
+
+When receiving encrypted data:
+
+1. **Fetch the PublicKey resource:**
+
+```proto
+// Use a Get operation on the parent resource to get the publicKey field
+name: "measurementConsumers/mc-123/publicKey"
+```
+
+2. **Fetch the referenced Certificate:**
+
+```proto
+GetCertificateRequest {
+  name: "measurementConsumers/mc-123/certificates/cert-456"
+}
+```
+
+3. **Verify the signature:**
+
+Use the certificate's public key to verify the `signature` in the `SignedMessage`.
+
+4. **Extract and use the public key:**
+
+Deserialize the `EncryptionPublicKey` from the `message` field and use it to encrypt data for the parent resource.
+
+## Tink Keyset Format
+
+When using `TINK_KEYSET` format:
+
+- The `data` field contains a serialized `google.crypto.tink.Keyset` message
+- Encrypted messages use [Tink's wire format](https://github.com/google/tink/blob/master/docs/WIRE-FORMAT.md)
+- See [Tink documentation](https://github.com/google/tink/blob/master/proto/tink.proto) for keyset structure
+
+### Example Tink Keyset Usage
+
+```java
+// Generate a new keyset
+KeysetHandle keysetHandle = KeysetHandle.generateNew(
+    KeyTemplates.get("AES128_GCM"));
+
+// Serialize public keyset
+ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+CleartextKeysetHandle.write(keysetHandle.getPublicKeysetHandle(),
+    BinaryKeysetWriter.withOutputStream(outputStream));
+byte[] publicKeysetBytes = outputStream.toByteArray();
+
+// Create EncryptionPublicKey
+EncryptionPublicKey encryptionPublicKey = EncryptionPublicKey.newBuilder()
+    .setFormat(EncryptionPublicKey.Format.TINK_KEYSET)
+    .setData(ByteString.copyFrom(publicKeysetBytes))
+    .build();
+```
+
+## Signature Algorithms
+
+Common signature algorithm OIDs:
+
+| Algorithm | OID |
+|-----------|-----|
+| SHA256withRSA | 1.2.840.113549.1.1.11 |
+| SHA384withRSA | 1.2.840.113549.1.1.12 |
+| SHA512withRSA | 1.2.840.113549.1.1.13 |
+| SHA256withECDSA | 1.2.840.10045.4.3.2 |
+| SHA384withECDSA | 1.2.840.10045.4.3.3 |
+| SHA512withECDSA | 1.2.840.10045.4.3.4 |
+
+## Security Considerations
+
+<Warning>
+  - Always verify signatures before trusting public keys
+  - Use strong signature algorithms (SHA256 or better)
+  - Rotate keys regularly
+  - Keep private keys secure and never transmit them
+  - Ensure certificates are valid and not revoked
+</Warning>
+
+<Info>
+  The PublicKey resource is a singleton - each parent has exactly one. Updating it replaces the previous key entirely.
+</Info>
+
+## Best Practices
+
+1. **Certificate Management:** Ensure the referenced certificate is valid before updating the public key
+2. **Version Matching:** The `EncryptionPublicKey` message version must match the API version
+3. **Signature Verification:** Always verify the signature using the referenced certificate
+4. **Key Rotation:** Plan for key rotation by maintaining old private keys during transition
+5. **Format Consistency:** Use `TINK_KEYSET` format for compatibility with Tink cryptographic library

@@ -1,0 +1,261 @@
+---
+title: "Accounts API"
+description: "Service for managing user account resources"
+---
+
+The Accounts service provides methods for creating, activating, and managing user accounts in the Cross-Media Measurement system.
+
+## Resource
+
+### Account
+
+An API user account resource.
+
+**Resource Pattern:** `accounts/{account}`
+
+<ResponseField name="name" type="string" required>
+  Resource name.
+</ResponseField>
+
+<ResponseField name="creator" type="string">
+  Resource name of the Account that created this one. Output-only. Immutable.
+  
+  Reference: `halo.wfanet.org/Account`
+</ResponseField>
+
+<ResponseField name="activation_state" type="ActivationState">
+  Activation state of this Account. Output-only.
+  
+  Possible values:
+  - `ACTIVATION_STATE_UNSPECIFIED` - Default value
+  - `UNACTIVATED` - Account has not yet been activated
+  - `ACTIVATED` - Account has been activated (terminal state)
+</ResponseField>
+
+<ResponseField name="activation_params" type="ActivationParams">
+  Parameters for activation of this Account.
+  
+  Only set when `activation_state` is `UNACTIVATED` in `FULL` view.
+  
+  <Expandable title="ActivationParams fields">
+    <ResponseField name="owned_measurement_consumer" type="string">
+      Resource name of the MeasurementConsumer that this Account will be an owner of upon activation. Immutable.
+      
+      This can only be a MeasurementConsumer that the creator is an owner of.
+    </ResponseField>
+    
+    <ResponseField name="activation_token" type="string">
+      Token that can be used to activate the account. Output-only.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="open_id" type="OpenIdConnectIdentity">
+  OpenID Connect identity of the user for this Account. Output-only.
+  
+  This must be set when `activation_state` is `ACTIVATED`. The value is unique across all Account resources.
+  
+  <Expandable title="OpenIdConnectIdentity fields">
+    <ResponseField name="issuer" type="string" required>
+      Issuer (iss claim value).
+    </ResponseField>
+    
+    <ResponseField name="subject" type="string" required>
+      Subject Identifier (subj claim value).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Views
+
+Accounts support different view levels:
+
+- `VIEW_UNSPECIFIED` - Defaults to BASIC
+- `BASIC` - Basic account information
+- `FULL` - Complete account details including activation parameters
+
+## Methods
+
+### CreateAccount
+
+Creates (registers) an Account.
+
+The `creator` will be derived from the authenticated caller. Results in `PERMISSION_DENIED` if the authenticated caller does not own the `owned_measurement_consumer` in `activation_params`.
+
+Returns the `FULL` view of the created Account.
+
+<ParamField body="account" type="Account" required>
+  The Account to create. The `name` field will be ignored, and the system will assign an ID.
+</ParamField>
+
+<ResponseField name="response" type="Account">
+  The created Account resource in FULL view.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message CreateAccountRequest {
+  Account account = 1;
+}
+```
+
+#### Error Conditions
+
+- `PERMISSION_DENIED` - Caller does not own the `owned_measurement_consumer` specified in activation parameters
+- `INVALID_ARGUMENT` - Invalid account data provided
+
+---
+
+### ActivateAccount
+
+Activates an account by transitioning its `activation_state` to `ACTIVATED`.
+
+The `identity` will be derived from the authenticated caller.
+
+<ParamField body="name" type="string" required>
+  Resource name of the Account to activate.
+  
+  Format: `accounts/{account}`
+</ParamField>
+
+<ParamField body="activation_token" type="string" required>
+  Activation token obtained from the Account's activation_params.
+</ParamField>
+
+<ResponseField name="response" type="Account">
+  The activated Account resource.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message ActivateAccountRequest {
+  string name = 1;  // "accounts/123"
+  string activation_token = 2;
+}
+```
+
+#### Error Conditions
+
+- `NOT_FOUND` - Account not found
+- `INVALID_ARGUMENT` - Invalid activation token
+- `FAILED_PRECONDITION` - Account already activated
+
+---
+
+### ReplaceAccountIdentity
+
+Replaces the `identity` of an Account.
+
+Results in `PERMISSION_DENIED` if the authenticated caller does not match the current `identity`.
+
+<ParamField body="name" type="string" required>
+  Resource name of the Account.
+  
+  Format: `accounts/{account}`
+</ParamField>
+
+<ParamField body="open_id" type="OpenIdConnectCredentials">
+  Replacement credentials for an OpenID Connect identity.
+  
+  <Expandable title="OpenIdConnectCredentials fields">
+    <ParamField name="identity_bearer_token" type="string" required>
+      Encoded JSON Web Token (JWT).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="Account">
+  The updated Account resource.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message ReplaceAccountIdentityRequest {
+  string name = 1;  // "accounts/123"
+  
+  oneof replacement_credentials {
+    OpenIdConnectCredentials open_id = 2;
+  }
+}
+
+message OpenIdConnectCredentials {
+  string identity_bearer_token = 1;  // JWT token
+}
+```
+
+#### Error Conditions
+
+- `PERMISSION_DENIED` - Caller does not match current identity
+- `NOT_FOUND` - Account not found
+- `INVALID_ARGUMENT` - Invalid credentials provided
+
+---
+
+### Authenticate
+
+Authenticates the user using an OpenID Connect (OIDC) provider.
+
+<ParamField body="issuer" type="string" required>
+  OpenID Connect issuer identifier.
+  
+  For Self-Issued OpenID Providers, this will be `https://self-issued.me`.
+</ParamField>
+
+<ResponseField name="authentication_request_uri" type="string">
+  URI for id_token authentication request to OpenID Provider.
+</ResponseField>
+
+#### Example Request
+
+```proto
+message AuthenticateRequest {
+  string issuer = 1;  // "https://accounts.google.com"
+}
+```
+
+#### Example Response
+
+```proto
+message AuthenticateResponse {
+  string authentication_request_uri = 1;
+}
+```
+
+## Usage Examples
+
+### Creating and Activating an Account
+
+1. **Create the account:**
+
+```proto
+CreateAccountRequest {
+  account: {
+    activation_params: {
+      owned_measurement_consumer: "measurementConsumers/mc-123"
+    }
+  }
+}
+```
+
+2. **Activate with token:**
+
+```proto
+ActivateAccountRequest {
+  name: "accounts/acc-456"
+  activation_token: "<token-from-creation>"
+}
+```
+
+### Replacing Account Identity
+
+```proto
+ReplaceAccountIdentityRequest {
+  name: "accounts/acc-456"
+  open_id: {
+    identity_bearer_token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```

@@ -1,0 +1,210 @@
+---
+title: "Measurement Consumers API"
+description: "Complete API reference for the MeasurementConsumers service"
+---
+
+The MeasurementConsumers service provides methods for managing measurement consumer resources.
+
+## Resource
+
+### MeasurementConsumer
+
+A consumer of `Measurement` results. For example, an advertiser or ad agency.
+
+**Resource name pattern:** `measurementConsumers/{measurement_consumer}`
+
+<ResponseField name="name" type="string" required>
+  Resource name identifier.
+</ResponseField>
+
+<ResponseField name="certificate_der" type="bytes" required>
+  The X.509 certificate belonging to this `MeasurementConsumer` in DER format which can be used to verify `public_key`.
+</ResponseField>
+
+<ResponseField name="certificate" type="string">
+  Resource name of the `Certificate` belonging to this `MeasurementConsumer` which can be used to verify `public_key`.
+  
+  The `x509_der` field of this resource matches `certificate_der`. Output only.
+</ResponseField>
+
+<ResponseField name="public_key" type="SignedMessage" required>
+  Serialized `EncryptionPublicKey` for this `MeasurementConsumer`, which can be verified using `certificate`.
+  
+  The version of the `EncryptionPublicKey` message must match the API version used to last update this resource.
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Display name of the `MeasurementConsumer`.
+</ResponseField>
+
+<ResponseField name="owners" type="string[]">
+  Resource names of owner `Account`s. Output only.
+</ResponseField>
+
+<ResponseField name="measurement_consumer_creation_token" type="string" required>
+  Token to create a `MeasurementConsumer` resource. Required, immutable, input only.
+</ResponseField>
+
+## Methods
+
+### GetMeasurementConsumer
+
+Returns the `MeasurementConsumer` with the specified resource key.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the MeasurementConsumer.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+**Response**
+
+Returns a `MeasurementConsumer` resource.
+
+**Example**
+
+```proto
+message GetMeasurementConsumerRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+---
+
+### CreateMeasurementConsumer
+
+Creates (registers) a `MeasurementConsumer`.
+
+**Request**
+
+<ParamField body="measurement_consumer" type="MeasurementConsumer" required>
+  The `MeasurementConsumer` to create.
+  
+  The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `certificate_der`: X.509 certificate in DER format
+  - `public_key`: Serialized encryption public key
+  - `measurement_consumer_creation_token`: Token to authorize creation
+</ParamField>
+
+**Response**
+
+Returns the created `MeasurementConsumer` resource.
+
+**Example**
+
+```proto
+message CreateMeasurementConsumerRequest {
+  MeasurementConsumer measurement_consumer = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**Usage Notes**
+
+- The `measurement_consumer_creation_token` must be a valid token obtained from the system administrator.
+- The `certificate_der` must contain a valid X.509 certificate in DER format.
+- The `public_key` must be a signed message containing the encryption public key that can be verified using the certificate.
+
+---
+
+### AddMeasurementConsumerOwner
+
+Adds an owner to the specified `MeasurementConsumer`.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the MeasurementConsumer.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="account" type="string" required>
+  Resource name of the `Account` to add as an owner of this `MeasurementConsumer`.
+  
+  Format: `accounts/{account}`
+</ParamField>
+
+**Response**
+
+Returns the updated `MeasurementConsumer` resource with the new owner added to the `owners` list.
+
+**Example**
+
+```proto
+message AddMeasurementConsumerOwnerRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string account = 2 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**Usage Notes**
+
+- The authenticated user must have permission to modify the MeasurementConsumer.
+- The specified account must exist.
+- If the account is already an owner, this operation is idempotent.
+
+---
+
+### RemoveMeasurementConsumerOwner
+
+Removes an owner from the specified `MeasurementConsumer`.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the MeasurementConsumer.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField body="account" type="string" required>
+  Resource name of the `Account` to remove as an owner of this `MeasurementConsumer`.
+  
+  Format: `accounts/{account}`
+</ParamField>
+
+**Response**
+
+Returns the updated `MeasurementConsumer` resource with the owner removed from the `owners` list.
+
+**Example**
+
+```proto
+message RemoveMeasurementConsumerOwnerRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string account = 2 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**Usage Notes**
+
+- The authenticated user must have permission to modify the MeasurementConsumer.
+- If the account is not currently an owner, this operation is idempotent.
+- At least one owner must remain after the removal.
+
+## Workflow
+
+### Creating a MeasurementConsumer
+
+1. **Obtain Creation Token**: Get a `measurement_consumer_creation_token` from your system administrator.
+2. **Prepare Certificate**: Generate an X.509 certificate and convert it to DER format.
+3. **Prepare Public Key**: Create an encryption public key and sign it with your certificate.
+4. **Create Resource**: Call `CreateMeasurementConsumer` with the required fields.
+5. **Store Credentials**: Securely store your private keys and certificate for signing measurement requests.
+
+### Managing Owners
+
+1. **Add Owners**: Use `AddMeasurementConsumerOwner` to grant ownership access to additional accounts.
+2. **Remove Owners**: Use `RemoveMeasurementConsumerOwner` to revoke ownership access.
+3. **View Owners**: Use `GetMeasurementConsumer` to see the current list of owners.
+
+## Security Considerations
+
+- **Certificate Management**: Keep your private key secure. If compromised, revoke the certificate and create a new MeasurementConsumer.
+- **Encryption Keys**: The public key is used to encrypt measurement results. Only you should have the corresponding private key.
+- **Owner Access**: Owners have full access to the MeasurementConsumer and can create measurements. Only add trusted accounts.
+- **Creation Tokens**: Protect creation tokens as they authorize creating new MeasurementConsumers.

@@ -1,0 +1,214 @@
+---
+title: Model Rollouts API
+description: API reference for managing Model Rollout resources
+---
+
+The Model Rollouts API allows you to create, list, schedule, and delete model rollouts. A model rollout represents the rollout of a ModelLine.
+
+## Resource
+
+### ModelRollout
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelRollouts/{model_rollout}`
+</ResponseField>
+
+<ResponseField name="rollout_deploy_period" type="oneof" required>
+  Determine the type of rollout for this ModelRollout. One of:
+  
+  <ResponseField name="gradual_rollout_period" type="DateInterval">
+    Date interval in UTC format over which the rollout must be deployed.
+    
+    `end_date` cannot precede `start_date`. This field is immutable after creation.
+  </ResponseField>
+  
+  <ResponseField name="instant_rollout_date" type="Date">
+    In case of a rollout instantly deployed, instant_rollout_date must be specified instead.
+    
+    Date is expressed in UTC format. This field is immutable after creation.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="rollout_freeze_date" type="Date">
+  Indicates the date the rollout must stop expanding its release percentage.
+  
+  It must be within `rollout_start_date` and `rollout_end_date`. Once set, this value can no longer be changed.
+</ResponseField>
+
+<ResponseField name="previous_model_rollout" type="string" output>
+  The previous model rollout this model rollout transitions from.
+  
+  The system will automatically set this field to the ModelRollout with the most recent rollout_start_time. Not set if rollout_start_time == rollout_end_time.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelRollouts/{model_rollout}`
+</ResponseField>
+
+<ResponseField name="model_release" type="string" required>
+  The ModelRelease this model rollout refers to.
+  
+  Both the ModelRelease and the ModelRollout need to be parented by the same ModelSuite. This field is immutable after creation.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}`
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the ModelRollout was created
+</ResponseField>
+
+<ResponseField name="update_time" type="Timestamp" output>
+  When the ModelRollout was last updated
+</ResponseField>
+
+## Methods
+
+### CreateModelRollout
+
+Creates a new `ModelRollout`. `rollout_start_time` must be sufficiently in the future to allow for EDPs to sync with the Kingdom.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+</ParamField>
+
+<ParamField body="model_rollout" type="ModelRollout" required>
+  The ModelRollout to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `model_release`: Reference to a ModelRelease
+  - One of `gradual_rollout_period` or `instant_rollout_date`
+</ParamField>
+
+**Response**
+
+Returns the created `ModelRollout` resource.
+
+**Example Request**
+
+```proto
+CreateModelRolloutRequest {
+  parent: "modelProviders/123/modelSuites/456/modelLines/789"
+  model_rollout: {
+    model_release: "modelProviders/123/modelSuites/456/modelReleases/101"
+    gradual_rollout_period: {
+      start_date: { year: 2024, month: 1, day: 1 }
+      end_date: { year: 2024, month: 1, day: 31 }
+    }
+  }
+}
+```
+
+### ListModelRollouts
+
+Lists `ModelRollout` resources for a given ModelLine. Returns a sorted list by rollout_start_time ASC.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent ModelLine.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}`
+  
+  The wildcard ID (`-`) may be used in place of the ModelLine ID to list across every ModelLine in the ancestor ModelSuite.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Structured filter criteria. Each field represents a term in a conjunction.
+  
+  <ParamField body="filter.rollout_period_overlapping" type="DateInterval">
+    Only ModelRollouts having `rollout_deploy_period` overlapping `rollout_period_overlapping` are returned.
+  </ParamField>
+  
+  <ParamField body="filter.model_release_in" type="string[]">
+    Set of ModelRelease resource names which ModelRollout.model_release must be in.
+    
+    These must belong to the same ModelSuite as specified in parent. Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelReleases/{model_release}`
+  </ParamField>
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ModelRollouts to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ModelRollouts will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListModelRollouts` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="model_rollouts" type="ModelRollout[]">
+  List of ModelRollout resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListModelRolloutsRequest {
+  parent: "modelProviders/123/modelSuites/456/modelLines/789"
+  filter: {
+    rollout_period_overlapping: {
+      start_date: { year: 2024, month: 1, day: 1 }
+      end_date: { year: 2024, month: 12, day: 31 }
+    }
+  }
+  page_size: 50
+}
+```
+
+### ScheduleModelRolloutFreeze
+
+Sets the `rollout_freeze_date` of a ModelRollout. Any attempt to schedule the `rollout_freeze_date` for an instant rollout will result in an exception.
+
+<ParamField path="name" type="string" required>
+  Resource name of the ModelRollout.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelRollouts/{model_rollout}`
+</ParamField>
+
+<ParamField body="rollout_freeze_date" type="Date">
+  The rollout_freeze_date value to be set.
+  
+  This must be sufficiently in the future to allow for EDPs to sync with the Kingdom.
+</ParamField>
+
+**Response**
+
+Returns the updated `ModelRollout` resource.
+
+**Example Request**
+
+```proto
+ScheduleModelRolloutFreezeRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789/modelRollouts/101"
+  rollout_freeze_date: { year: 2024, month: 1, day: 15 }
+}
+```
+
+### DeleteModelRollout
+
+Deletes a `ModelRollout`. Results in FAILED_PRECONDITION if the request is received after `ModelRollout.rollout_period.start_time`.
+
+<ParamField path="name" type="string" required>
+  The name of the ModelRollout to delete.
+  
+  Format: `modelProviders/{model_provider}/modelSuites/{model_suite}/modelLines/{model_line}/modelRollouts/{model_rollout}`
+</ParamField>
+
+**Response**
+
+Returns an empty response on success.
+
+**Example Request**
+
+```proto
+DeleteModelRolloutRequest {
+  name: "modelProviders/123/modelSuites/456/modelLines/789/modelRollouts/101"
+}
+```

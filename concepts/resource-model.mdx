@@ -1,0 +1,264 @@
+---
+title: Resource Model
+description: Understanding the hierarchical resource structure in the Cross-Media Measurement API
+---
+
+## Overview
+
+The Cross-Media Measurement API follows a hierarchical resource-oriented architecture where resources represent key entities in the measurement ecosystem. Understanding this resource model is essential for effectively using the API.
+
+<Note>
+The API resource relationships are described in detail throughout this page, showing how MeasurementConsumers, DataProviders, Measurements, Requisitions, and other resources interact.
+</Note>
+
+## Core Resources
+
+### MeasurementConsumer
+
+A **MeasurementConsumer** represents an entity that requests and consumes measurement results, typically an advertiser or ad agency.
+
+```protobuf
+message MeasurementConsumer {
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/MeasurementConsumer"
+    pattern: "measurementConsumers/{measurement_consumer}"
+  };
+
+  string name = 1;
+  bytes certificate_der = 2;
+  SignedMessage public_key = 4;
+  string display_name = 5;
+  repeated string owners = 6;
+}
+```
+
+<Info>
+MeasurementConsumers are identified by resource names following the pattern:
+`measurementConsumers/{measurement_consumer}`
+</Info>
+
+**Key Responsibilities:**
+- Create Measurements to request cross-media analytics
+- Own Certificates for authentication and encryption
+- Manage ApiKeys for programmatic access
+- Maintain encryption PublicKeys for secure result delivery
+
+### DataProvider
+
+A **DataProvider** represents an entity that provides event data for measurements, such as a publisher or panel provider.
+
+```protobuf
+message DataProvider {
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/DataProvider"
+    pattern: "dataProviders/{data_provider}"
+  };
+
+  string name = 1;
+  bytes certificate_der = 2;
+  SignedMessage public_key = 4;
+  string display_name = 5;
+  repeated string required_duchies = 6;
+  Capabilities capabilities = 8;
+}
+```
+
+**Key Responsibilities:**
+- Define EventGroups representing event data collections
+- Fulfill Requisitions by providing encrypted data
+- Manage Certificates and PublicKeys for secure communication
+- Specify data availability intervals
+
+<Tip>
+DataProviders can specify capabilities to indicate which MPC protocols they support, such as Honest Majority Share Shuffle or TrusTEE.
+</Tip>
+
+### Duchy
+
+A **Duchy** represents a computation worker that participates in multi-party computation protocols. Duchies are non-colluding entities that jointly compute measurement results without seeing individual user data.
+
+```protobuf
+message Duchy {
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/Duchy"
+    pattern: "duchies/{duchy}"
+  };
+
+  string name = 1;
+}
+```
+
+<Note>
+Duchies are managed by the system and are read-only resources. They cannot be created or modified through the public API.
+</Note>
+
+## Measurement Workflow Resources
+
+### Measurement
+
+A **Measurement** represents a request from a MeasurementConsumer to compute metrics across data from multiple DataProviders.
+
+**Resource Pattern:** `measurementConsumers/{measurement_consumer}/measurements/{measurement}`
+
+**State Lifecycle:**
+1. `AWAITING_REQUISITION_FULFILLMENT` - Waiting for DataProviders to fulfill requisitions
+2. `COMPUTING` - Multi-party computation in progress
+3. `SUCCEEDED` - Completed successfully (terminal state)
+4. `FAILED` - Completed with failure (terminal state)
+5. `CANCELLED` - Cancelled by MeasurementConsumer (terminal state)
+
+**Result Types:**
+- **Reach**: Unique user count (deduplicated VIDs)
+- **Frequency**: Distribution of impression frequency per user
+- **Impression**: Total impression count
+- **WatchDuration**: Total watch time
+- **Population**: Population count
+
+### Requisition
+
+A **Requisition** represents a request for data from a single DataProvider for a specific Measurement. Requisitions are automatically created when a Measurement is created.
+
+**Resource Pattern:** `dataProviders/{data_provider}/requisitions/{requisition}`
+
+```protobuf
+enum State {
+  STATE_UNSPECIFIED = 0;
+  UNFULFILLED = 1;
+  FULFILLED = 2;    // Terminal state
+  REFUSED = 3;      // Terminal state
+  WITHDRAWN = 4;    // Terminal state
+}
+```
+
+<Info>
+Requisitions link Measurements to EventGroups, specifying exactly what data is needed from each DataProvider.
+</Info>
+
+### EventGroup
+
+An **EventGroup** represents a logical grouping of events defined by a DataProvider, such as a single advertising campaign or creative.
+
+**Resource Pattern:** `dataProviders/{data_provider}/eventGroups/{event_group}`
+
+```protobuf
+message EventGroup {
+  string name = 1;
+  string measurement_consumer = 2;
+  repeated MediaType media_types = 13;
+  EventGroupMetadata event_group_metadata = 14;
+  repeated EventTemplate event_templates = 7;
+  google.type.Interval data_availability_interval = 11;
+  State state = 9;
+}
+```
+
+**Key Features:**
+- Associates events with a specific MeasurementConsumer
+- Defines the time range when events are available
+- Specifies media types (VIDEO, DISPLAY, etc.)
+- Contains encrypted metadata describing the events
+
+## Security Resources
+
+### Certificate
+
+Certificates are used for authentication and signature verification throughout the API.
+
+**Resource Patterns:**
+- `dataProviders/{data_provider}/certificates/{certificate}`
+- `measurementConsumers/{measurement_consumer}/certificates/{certificate}`
+- `duchies/{duchy}/certificates/{certificate}`
+
+**Revocation States:**
+- `REVOCATION_STATE_UNSPECIFIED`
+- `VALID`
+- `REVOKED`
+- `HOLD`
+
+### PublicKey
+
+PublicKeys are used for encrypting data that only the key owner can decrypt.
+
+**Resource Patterns:**
+- `dataProviders/{data_provider}/publicKey`
+- `measurementConsumers/{measurement_consumer}/publicKey`
+
+<Note>
+PublicKeys are singleton resources - each parent has exactly one PublicKey that can be updated.
+</Note>
+
+### ApiKey
+
+ApiKeys enable programmatic access to the API for MeasurementConsumers.
+
+**Resource Pattern:** `measurementConsumers/{measurement_consumer}/apiKeys/{api_key}`
+
+## Resource Relationships
+
+The resource hierarchy creates several important relationships:
+
+### Parent-Child Relationships
+
+```
+MeasurementConsumer
+├── Measurements
+├── Certificates
+├── PublicKey (singleton)
+└── ApiKeys
+
+DataProvider
+├── EventGroups
+├── Requisitions
+├── Certificates
+├── PublicKey (singleton)
+└── EventGroupMetadataDescriptors
+
+Duchy
+└── Certificates
+```
+
+### Cross-Resource References
+
+- **EventGroup → MeasurementConsumer**: EventGroups reference the MeasurementConsumer they're associated with
+- **Requisition → Measurement**: Requisitions reference the Measurement they belong to
+- **Requisition → EventGroup**: Requisitions specify which EventGroups to query
+- **Measurement → Certificates**: Measurements reference certificates for encryption and verification
+
+<Tip>
+Resource names are hierarchical and use the pattern `{parent}/{parent_id}/{collection}/{resource_id}`. Always use the full resource name when making API calls.
+</Tip>
+
+## Resource Naming Convention
+
+All resources follow Google's API Resource naming conventions:
+
+- Resources use singular names: `measurement`, `eventGroup`, `requisition`
+- Collections use plural names: `measurements`, `eventGroups`, `requisitions`
+- IDs are opaque strings assigned by the server
+- Full resource names are slash-separated paths
+
+**Example Resource Names:**
+```
+measurementConsumers/abc123
+measurementConsumers/abc123/measurements/xyz789
+dataProviders/def456/eventGroups/campaign001
+dataProviders/def456/requisitions/req123
+```
+
+## Immutability
+
+Many resources and fields in the API are immutable once created:
+
+- **Measurements**: Once created, the measurement_spec and data_providers cannot be changed
+- **Requisitions**: Automatically created and cannot be modified (only fulfilled or refused)
+- **EventGroups**: Core fields like measurement_consumer are immutable
+
+<Info>
+Immutability ensures the integrity of measurements and prevents tampering with data after creation.
+</Info>
+
+## Related Concepts
+
+- [Measurements](/concepts/measurements) - Deep dive into measurement types and lifecycle
+- [Event Groups](/concepts/event-groups) - Understanding event data organization
+- [Multi-Party Computation](/concepts/multi-party-computation) - How Duchies collaborate securely

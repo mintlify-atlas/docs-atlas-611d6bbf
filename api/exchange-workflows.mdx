@@ -1,0 +1,300 @@
+---
+title: Exchange Workflows
+description: Reference for Exchange Workflow message structures
+---
+
+Exchange workflows define the panel matching workflow that occurs between a DataProvider and ModelProvider. Each workflow consists of a sequence of steps that parties execute to complete the exchange.
+
+## ExchangeWorkflow
+
+The representation for the Panel Matching Workflow. These are unique per recurring exchange as they contain the identities of each party.
+
+<ResponseField name="steps" type="Step[]">
+  Sequence of steps of the workflow.
+</ResponseField>
+
+<ResponseField name="exchange_identifiers" type="ExchangeIdentifiers">
+  Identifiers for the Exchange.
+  
+  <ResponseField name="exchange_identifiers.data_provider" type="string">
+    Resource key of the Data Provider for the recurring exchange.
+    
+    Format: `dataProviders/{data_provider}`
+  </ResponseField>
+  
+  <ResponseField name="exchange_identifiers.model_provider" type="string">
+    Resource key of the Model Provider for the recurring exchange.
+    
+    Format: `modelProviders/{model_provider}`
+  </ResponseField>
+  
+  <ResponseField name="exchange_identifiers.shared_storage_owner" type="Party">
+    Identifies which party is managing the shared storage client.
+  </ResponseField>
+  
+  <ResponseField name="exchange_identifiers.storage" type="StorageType">
+    Identifies what chosen storage will be used to back the underlying StorageClient for shared storage.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="first_exchange_date" type="Date">
+  The date of the first Exchange.
+</ResponseField>
+
+<ResponseField name="repetition_schedule" type="Schedule">
+  How often to run the exchange_workflow.
+  
+  <ResponseField name="repetition_schedule.cron_expression" type="string">
+    Valid CRON expression. See https://en.wikipedia.org/wiki/Cron#CRON_expression
+    
+    Currently, only `@daily`, `@weekly`, `@monthly` and `@yearly` are supported.
+  </ResponseField>
+</ResponseField>
+
+## Enums
+
+### Party
+
+The type of participant that executes each step.
+
+- `PARTY_UNSPECIFIED`: Default value used if the party is omitted
+- `MODEL_PROVIDER`: Model provider party
+- `DATA_PROVIDER`: Data provider party
+
+### StorageType
+
+The type of storage used for shared storage in a workflow.
+
+- `STORAGE_TYPE_UNSPECIFIED`: Default value used if the storage type is omitted
+- `GOOGLE_CLOUD_STORAGE`: Google Cloud Storage
+- `AMAZON_S3`: Amazon S3
+
+## Step
+
+Building blocks of the ExchangeWorkflow.
+
+<ResponseField name="step_id" type="string">
+  Identifier unique in the ExchangeWorkflow.
+</ResponseField>
+
+<ResponseField name="party" type="Party">
+  The party that should execute this step.
+</ResponseField>
+
+<ResponseField name="input_labels" type="map<string, string>">
+  Map from the step-specific name to a label for the input.
+  
+  Each step expects some inputs of certain names. The step is ready to run when, for each input label, there is a completed step with the same output label.
+</ResponseField>
+
+<ResponseField name="output_labels" type="map<string, string>">
+  Map from the step-specific name to a label for the output.
+</ResponseField>
+
+<ResponseField name="step" type="oneof">
+  The specific step type. One of:
+  
+  - `copy_from_shared_storage_step`
+  - `copy_to_shared_storage_step`
+  - `intersect_and_validate_step`
+  - `commutative_deterministic_encrypt_step`
+  - `commutative_deterministic_reencrypt_step`
+  - `commutative_deterministic_decrypt_step`
+  - `input_step`
+  - `generate_commutative_deterministic_key_step`
+  - `generate_serialized_rlwe_key_pair_step`
+  - `execute_private_membership_queries_step`
+  - `build_private_membership_queries_step`
+  - `decrypt_private_membership_query_results_step`
+  - `generate_certificate_step`
+  - `preprocess_events_step`
+  - `copy_from_previous_exchange_step`
+  - `generate_lookup_keys_step`
+  - `hybrid_encrypt_step`
+  - `hybrid_decrypt_step`
+  - `generate_hybrid_encryption_key_pair_step`
+  - `generate_random_bytes_step`
+  - `assign_join_key_ids_step`
+</ResponseField>
+
+## Step Types
+
+### CopyToSharedStorageStep
+
+Copies blobs from private to shared storage.
+
+The keys of input_labels and output_labels must be the same. For each input, it copies it to an output given by the value in the output_labels.
+
+<ResponseField name="copy_options" type="CopyOptions">
+  Options for copying.
+  
+  <ResponseField name="copy_options.label_type" type="LabelType">
+    - `LABEL_TYPE_UNSPECIFIED`: Default value
+    - `BLOB`: Indicates the blob should be treated as an opaque blob
+    - `MANIFEST`: Indicates the blob for a label is a manifest file containing a file glob referencing other files that should be copied
+  </ResponseField>
+</ResponseField>
+
+### CopyFromSharedStorageStep
+
+Copies blobs from shared storage to private storage.
+
+<ResponseField name="copy_options" type="CopyOptions">
+  Options for copying.
+</ResponseField>
+
+### IntersectAndValidateStep
+
+Compares the inputs to determine if they overlap sufficiently.
+
+<ResponseField name="max_size" type="int32">
+  The maximum number of items to allow.
+</ResponseField>
+
+<ResponseField name="maximum_new_items_allowed" type="int32">
+  The maximum number of items allowed that do not exist in the previous day's set of items.
+</ResponseField>
+
+### CommutativeDeterministicEncryptStep
+
+Applies deterministic, commutative encryption to the input plaintext join keys.
+
+### CommutativeDeterministicReEncryptStep
+
+Applies an additional layer of deterministic, commutative encryption to already encrypted join keys.
+
+### CommutativeDeterministicDecryptStep
+
+Removes a layer of deterministic, commutative encryption from a set of encrypted join keys.
+
+### InputStep
+
+Represents an input to the protocol derived from some unknown process by the party.
+
+These steps are used as placeholders to allow parties to signal when their inputs are ready.
+
+### GenerateCommutativeDeterministicKeyStep
+
+Generates a commutative deterministic key.
+
+### GenerateSerializedRlweKeyPairStep
+
+Generates a serialized RLWE key pair.
+
+<ResponseField name="parameters" type="Any">
+  This is generally an instance of private_membership.batch.Parameters.
+</ResponseField>
+
+### ExecutePrivateMembershipQueriesStep
+
+Executes Private Membership queries.
+
+<ResponseField name="parameters" type="Any">
+  This is generally an instance of private_membership.batch.Parameters.
+</ResponseField>
+
+<ResponseField name="encrypted_query_result_file_count" type="int32">
+  Number of encrypted query result files.
+</ResponseField>
+
+<ResponseField name="shard_count" type="int32">
+  Number of shards.
+</ResponseField>
+
+<ResponseField name="buckets_per_shard" type="int32">
+  Number of buckets per shard.
+</ResponseField>
+
+<ResponseField name="max_queries_per_shard" type="int32">
+  Maximum queries per shard.
+</ResponseField>
+
+### BuildPrivateMembershipQueriesStep
+
+Builds Private Membership queries.
+
+<ResponseField name="parameters" type="Any">
+  This is generally an instance of private_membership.batch.Parameters.
+</ResponseField>
+
+<ResponseField name="encrypted_query_bundle_file_count" type="int32">
+  Number of encrypted query bundle files.
+</ResponseField>
+
+<ResponseField name="query_id_to_ids_file_count" type="int32">
+  Number of query ID to IDs files.
+</ResponseField>
+
+<ResponseField name="shard_count" type="int32">
+  Number of shards.
+</ResponseField>
+
+<ResponseField name="buckets_per_shard" type="int32">
+  Number of buckets per shard.
+</ResponseField>
+
+<ResponseField name="queries_per_shard" type="int32">
+  Queries per shard.
+</ResponseField>
+
+<ResponseField name="add_padding_queries" type="bool">
+  Whether to add padding queries.
+</ResponseField>
+
+### DecryptPrivateMembershipQueryResultsStep
+
+Decrypts results from Private Membership queries.
+
+<ResponseField name="parameters" type="Any">
+  This is generally an instance of private_membership.batch.Parameters.
+</ResponseField>
+
+<ResponseField name="decrypt_event_data_set_file_count" type="int32">
+  Number of decrypt event data set files.
+</ResponseField>
+
+### GenerateCertificateStep
+
+Generates an X509 Certificate to use. This should take no inputs and produces a single output "certificate", which should be the serialization of the Certificate resource.
+
+### PreprocessEventsStep
+
+Preprocesses data for later use by ExecutePrivateMembershipQueriesStep.
+
+### CopyFromPreviousExchangeStep
+
+Copies a blob from a previous exchange into this one. Requires a single output label "output".
+
+If this is the first exchange in a recurring exchange, this step is treated as an InputStep that awaits the existence of the indicated output blob key. For all subsequent exchanges, this step copies the blob named `previous_blob_key` from the previous exchange and writes it to the indicated output blob key.
+
+<ResponseField name="previous_blob_key" type="string">
+  The key of the blob to copy from the previous exchange.
+</ResponseField>
+
+### GenerateLookupKeysStep
+
+Hashes a set of decrypted join keys.
+
+### HybridEncryptStep
+
+Hybrid encrypts input given a public key.
+
+### HybridDecryptStep
+
+Hybrid decrypts input given a private key.
+
+### GenerateHybridEncryptionKeyPairStep
+
+Generates a hybrid encryption key pair.
+
+### GenerateRandomBytesStep
+
+Generates random bytes.
+
+<ResponseField name="byte_count" type="int32">
+  Number of random bytes to generate.
+</ResponseField>
+
+### AssignJoinKeyIdsStep
+
+Assigns JoinKey IDs.

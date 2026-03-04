@@ -1,0 +1,172 @@
+---
+title: Exchange Steps API
+description: API reference for managing Exchange Step resources
+---
+
+The Exchange Steps API allows you to claim ready exchange steps and list exchange steps. An exchange step represents an ExchangeWorkflow.Step for a particular Exchange.
+
+## Resource
+
+### ExchangeStep
+
+API resource representing an ExchangeWorkflow.Step for a particular Exchange.
+
+<ResponseField name="name" type="string" required>
+  Resource name with one of these patterns:
+  - `recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}`
+  - `dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}`
+  - `modelProviders/{model_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}`
+</ResponseField>
+
+<ResponseField name="exchange_date" type="Date" output>
+  Denormalized `date` from the parent Exchange.
+  
+  Must be a complete date (no field can be unset/zero). This field is immutable.
+</ResponseField>
+
+<ResponseField name="step_index" type="int32" required>
+  Current index of the step inside the serialized_exchange_workflow.
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="party" type="oneof" required>
+  The party that executes this step. One of:
+  
+  <ResponseField name="data_provider" type="string">
+    Resource name of the DataProvider that executes this step.
+    
+    Format: `dataProviders/{data_provider}`. This field is immutable.
+  </ResponseField>
+  
+  <ResponseField name="model_provider" type="string">
+    Resource name of the ModelProvider that executes this step.
+    
+    Format: `modelProviders/{model_provider}`. This field is immutable.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="exchange_workflow" type="Any" output>
+  Denormalized `exchange_workflow` field from the ancestor RecurringExchange.
+  
+  This field is immutable.
+</ResponseField>
+
+<ResponseField name="state" type="State" output>
+  State of this ExchangeStep.
+  
+  **Enum values:**
+  - `STATE_UNSPECIFIED`: Default value used if the state is omitted
+  - `BLOCKED`: Some predecessor ExchangeStep is not in state SUCCEEDED
+  - `READY`: All predecessor ExchangeSteps are in state SUCCEEDED and there are no associated ExchangeStepAttempts
+  - `READY_FOR_RETRY`: All predecessor ExchangeSteps are in state SUCCEEDED and there is at least one associated ExchangeStepAttempt and all associated ExchangeStepAttempts are in state FAILED
+  - `IN_PROGRESS`: All predecessor ExchangeSteps are in state SUCCEEDED and an associated ExchangeStepAttempt is in state ACTIVE
+  - `SUCCEEDED`: The step has succeeded (terminal state). This implies that an associated ExchangeStepAttempt is in state SUCCEEDED
+  - `FAILED`: The step has permanently failed (terminal state). This implies that an associated ExchangeStepAttempt is in state FAILED_STEP
+</ResponseField>
+
+## Methods
+
+### ClaimReadyExchangeStep
+
+Finds the first `ExchangeStep` for the caller under the specified `recurringExchanges` collection that is ready to be worked on and claims it, creating an initial `ExchangeStepAttempt` for it.
+
+This may create `Exchange` and `ExchangeStep` resources under the collection.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent of the `recurringExchanges` collection.
+  
+  This can be a DataProvider or ModelProvider resource name, or empty for global listing.
+</ParamField>
+
+**Response**
+
+<ResponseField name="exchange_step" type="ExchangeStep">
+  If an ExchangeStep was claimed, that resource.
+</ResponseField>
+
+<ResponseField name="exchange_step_attempt" type="string">
+  If an ExchangeStep was claimed, the resource name of the resulting ExchangeStepAttempt.
+  
+  Format: `recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{attempt}`
+</ResponseField>
+
+**Example Request**
+
+```proto
+ClaimReadyExchangeStepRequest {
+  parent: "dataProviders/123"
+}
+```
+
+### ListExchangeSteps
+
+Lists `ExchangeStep` resources.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent Exchange.
+  
+  Format: `recurringExchanges/{recurring_exchange}/exchanges/{exchange}`
+  
+  The wildcard ID (`-`) may be used in place of the Exchange ID to list across every Exchange in the ancestor RecurringExchange.
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of ExchangeSteps to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 ExchangeSteps will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListExchangeSteps` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+<ParamField body="filter" type="Filter">
+  Filter criteria. Repeated fields are treated as logical ORs, and multiple fields specified as logical ANDs.
+  
+  <ParamField body="filter.exchange_dates" type="Date[]">
+    Matches against the `exchange_date` field.
+  </ParamField>
+  
+  <ParamField body="filter.states" type="State[]">
+    Matches against the `state` field.
+  </ParamField>
+  
+  <ParamField body="filter.data_provider" type="string">
+    Matches against the `data_provider` field.
+    
+    Format: `dataProviders/{data_provider}`
+  </ParamField>
+  
+  <ParamField body="filter.model_provider" type="string">
+    Matches against the `model_provider` field.
+    
+    Format: `modelProviders/{model_provider}`
+  </ParamField>
+</ParamField>
+
+**Response**
+
+<ResponseField name="exchange_steps" type="ExchangeStep[]">
+  List of ExchangeStep resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListExchangeStepsRequest {
+  parent: "recurringExchanges/123/exchanges/456"
+  filter: {
+    states: [READY, READY_FOR_RETRY]
+    data_provider: "dataProviders/789"
+  }
+  page_size: 50
+}
+```

@@ -1,0 +1,393 @@
+---
+title: "Panel Matching"
+description: "Understanding panel matching protocols in the Cross-Media Measurement API"
+---
+
+Panel matching enables DataProviders to securely match user identifiers across panels while preserving privacy. This guide explains how panel matching works in the Cross-Media Measurement API.
+
+## Overview
+
+Panel matching (also called identity matching or join key exchange) allows two or more DataProviders to:
+
+- Identify overlapping users across their panels
+- Compute joint measurements on matched users
+- Maintain privacy through cryptographic protocols
+
+<Note>
+  Panel matching uses Multi-Party Computation (MPC) protocols to ensure that individual user identifiers are never revealed to other parties.
+</Note>
+
+## Exchange Workflows
+
+An `ExchangeWorkflow` encodes the panel matching protocol between parties. Exchange workflows define:
+
+- **Participants** - Which DataProviders are involved
+- **Steps** - The sequence of cryptographic operations
+- **Exchange format** - How data is structured and transmitted
+- **Privacy guarantees** - What information remains private
+
+### Workflow Components
+
+A typical exchange workflow includes:
+
+<AccordionGroup>
+  <Accordion title="Initialization Phase">
+    Parties agree on:
+    - The matching protocol to use
+    - Privacy parameters (epsilon, delta)
+    - Cryptographic keys for the exchange
+    - Data format and encoding
+  </Accordion>
+  
+  <Accordion title="Data Preparation">
+    Each DataProvider:
+    - Extracts user identifiers from their panel
+    - Normalizes and hashes identifiers
+    - Encrypts identifiers using the agreed protocol
+    - Adds differential privacy noise if required
+  </Accordion>
+  
+  <Accordion title="Exchange Steps">
+    Multi-party computation steps:
+    - Round 1: Each party sends encrypted identifiers
+    - Round 2: Parties perform homomorphic operations
+    - Round 3: Final decryption reveals only matches
+    - No individual identifiers are revealed
+  </Accordion>
+  
+  <Accordion title="Result Computation">
+    After matching:
+    - Matched identifiers are used to join datasets
+    - Measurements are computed on the joined data
+    - Results include only aggregates, not individual records
+  </Accordion>
+</AccordionGroup>
+
+## Panel Matching Protocols
+
+The API supports several panel matching protocols:
+
+### Private Set Intersection (PSI)
+
+PSI allows parties to find common elements in their datasets without revealing non-matching elements.
+
+**How it works:**
+1. Each party encrypts their user identifiers
+2. Encrypted sets are exchanged
+3. Cryptographic operations identify matches
+4. Only matching identifiers are revealed to both parties
+
+**Use cases:**
+- Two-party reach measurements
+- Cross-publisher frequency analysis
+- Attribution across platforms
+
+<Tip>
+  PSI is efficient for two-party matching with large datasets. For three or more parties, consider multi-party protocols.
+</Tip>
+
+### Private Join and Compute
+
+An extension of PSI that enables computation on matched records:
+
+1. **Join phase:** Identify matching users via PSI
+2. **Compute phase:** Run aggregation queries on matched data
+3. **Privacy:** Individual records remain private
+
+**Example:** Compute average watch time for users who saw ads on both platforms.
+
+### Homomorphic Encryption-based Matching
+
+Uses homomorphic encryption to perform matching operations:
+
+- Identifiers are encrypted with homomorphic properties
+- Comparison operations can be performed on encrypted data
+- Results are decrypted only after aggregation
+
+**Advantages:**
+- Stronger privacy guarantees
+- Supports complex matching rules
+- Can handle multi-party scenarios
+
+**Trade-offs:**
+- Higher computational cost
+- More complex setup
+
+## Implementing Panel Matching
+
+<Steps>
+  <Step title="Define the exchange workflow">
+    Work with other DataProviders to define the exchange workflow.
+    
+    Key decisions:
+    - Which protocol to use (PSI, Private Join and Compute, etc.)
+    - Privacy parameters
+    - Expected data volumes
+    - Acceptable latency
+    
+    <Warning>
+      Exchange workflows should be defined and agreed upon before initiating measurements. Changes mid-workflow may compromise privacy.
+    </Warning>
+  </Step>
+  
+  <Step title="Configure exchange parameters">
+    Set up the exchange workflow configuration:
+    
+    ```protobuf
+    message ExchangeWorkflow {
+      // Workflow steps
+      repeated Step steps = 1;
+      
+      // Privacy parameters
+      PrivacyParams privacy_params = 2;
+      
+      // Participating parties
+      repeated string participants = 3;
+    }
+    ```
+    
+    Example parameters:
+    - `epsilon`: 0.01 (privacy loss budget)
+    - `delta`: 1e-12 (failure probability)
+    - `matchingThreshold`: 0.95 (minimum match confidence)
+  </Step>
+  
+  <Step title="Prepare your panel data">
+    Format your panel data for the exchange:
+    
+    1. **Extract identifiers:** Get user IDs, hashed emails, or other join keys
+    2. **Normalize:** Apply consistent formatting (lowercase, trimming, etc.)
+    3. **Hash:** Use cryptographic hashing (SHA-256) for identifier privacy
+    4. **Encrypt:** Apply the protocol-specific encryption
+    
+    ```python
+    import hashlib
+    
+    def prepare_identifier(email):
+        # Normalize
+        normalized = email.lower().strip()
+        
+        # Hash
+        hashed = hashlib.sha256(normalized.encode()).hexdigest()
+        
+        return hashed
+    ```
+  </Step>
+  
+  <Step title="Execute the exchange workflow">
+    Follow the workflow steps to exchange encrypted identifiers:
+    
+    1. Each party uploads their encrypted identifiers
+    2. The system coordinates the multi-party computation
+    3. Intermediate results are exchanged according to the protocol
+    4. Match results are computed and returned
+    
+    <Note>
+      The API handles the cryptographic operations. You only need to provide properly formatted input data.
+    </Note>
+  </Step>
+  
+  <Step title="Validate match results">
+    Review the matching results:
+    
+    ```json
+    {
+      "matchRate": 0.42,
+      "totalRecords": 1000000,
+      "matchedRecords": 420000,
+      "privacyBudgetConsumed": {
+        "epsilon": 0.01,
+        "delta": 1e-12
+      }
+    }
+    ```
+    
+    Check:
+    - Match rate is within expected range
+    - Privacy budget consumption is acceptable
+    - No errors or warnings in the workflow execution
+  </Step>
+  
+  <Step title="Use matched data in measurements">
+    Create measurements using the matched panel:
+    
+    - Reference the exchange workflow in your measurement spec
+    - Specify which matched identifiers to use
+    - Run reach, frequency, or other measurements
+    
+    The measurement will only compute over users present in both panels.
+  </Step>
+</Steps>
+
+## Privacy Considerations
+
+Panel matching has important privacy implications:
+
+<AccordionGroup>
+  <Accordion title="Differential Privacy" icon="shield">
+    Always apply differential privacy to match results:
+    
+    - Add calibrated noise to match counts
+    - Use privacy budget management
+    - Monitor cumulative privacy loss
+    - Set appropriate epsilon and delta values
+    
+    Lower epsilon values provide stronger privacy but less accuracy.
+  </Accordion>
+  
+  <Accordion title="Minimum Threshold Enforcement" icon="users">
+    Enforce minimum thresholds for reporting:
+    
+    - Don't report matches below a minimum count (e.g., k=10)
+    - Prevents identification of small groups
+    - Combine with differential privacy for layered protection
+  </Accordion>
+  
+  <Accordion title="Rate Limiting" icon="clock">
+    Limit the frequency of panel matching:
+    
+    - Prevent repeated queries that could leak information
+    - Implement cooldown periods between matches
+    - Track cumulative queries per user
+  </Accordion>
+  
+  <Accordion title="Audit Logging" icon="list">
+    Maintain comprehensive audit logs:
+    
+    - Record all exchange workflow executions
+    - Log privacy parameters used
+    - Track which parties participated
+    - Enable privacy impact assessments
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflow
+
+Here's a complete example of a two-party panel matching workflow:
+
+```json
+{
+  "name": "Two-Party PSI for Reach Measurement",
+  "protocol": "PRIVATE_SET_INTERSECTION",
+  "participants": [
+    "dataProviders/publisher_a",
+    "dataProviders/publisher_b"
+  ],
+  "privacyParams": {
+    "epsilon": 0.01,
+    "delta": 1e-12
+  },
+  "steps": [
+    {
+      "stepId": 1,
+      "party": "dataProviders/publisher_a",
+      "operation": "ENCRYPT_AND_UPLOAD",
+      "description": "Publisher A encrypts and uploads identifiers"
+    },
+    {
+      "stepId": 2,
+      "party": "dataProviders/publisher_b",
+      "operation": "ENCRYPT_AND_UPLOAD",
+      "description": "Publisher B encrypts and uploads identifiers"
+    },
+    {
+      "stepId": 3,
+      "party": "SYSTEM",
+      "operation": "COMPUTE_INTERSECTION",
+      "description": "System computes private set intersection"
+    },
+    {
+      "stepId": 4,
+      "party": "SYSTEM",
+      "operation": "APPLY_DIFFERENTIAL_PRIVACY",
+      "description": "Apply differential privacy noise to match count"
+    },
+    {
+      "stepId": 5,
+      "party": "ALL",
+      "operation": "RECEIVE_RESULTS",
+      "description": "Both parties receive noisy match count"
+    }
+  ]
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Low match rates">
+    **Possible causes:**
+    - Identifier format mismatch (e.g., different hashing)
+    - Different normalization rules
+    - Data quality issues
+    - Limited panel overlap
+    
+    **Solutions:**
+    - Verify both parties use identical hashing and normalization
+    - Test with a small known-overlap dataset first
+    - Check for data quality issues (malformed emails, etc.)
+  </Accordion>
+  
+  <Accordion title="Exchange workflow failures">
+    **Possible causes:**
+    - Network connectivity issues
+    - Mismatched protocol versions
+    - Invalid encrypted data format
+    - Party timeout
+    
+    **Solutions:**
+    - Verify all parties are online and responsive
+    - Ensure consistent protocol version across parties
+    - Validate encrypted data format before exchange
+    - Increase timeout values for large datasets
+  </Accordion>
+  
+  <Accordion title="Privacy budget exceeded">
+    **Possible causes:**
+    - Too many matching attempts
+    - Epsilon/delta values too low for use case
+    - Cumulative privacy loss from multiple measurements
+    
+    **Solutions:**
+    - Implement privacy budget management
+    - Adjust epsilon/delta based on requirements
+    - Batch multiple measurements to share privacy budget
+    - Reset privacy budget periodically if appropriate
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Test with Sample Data" icon="flask">
+    Always test exchange workflows with sample data before production use. Verify match rates and privacy parameters.
+  </Card>
+  
+  <Card title="Coordinate with Partners" icon="handshake">
+    Work closely with matching partners to ensure consistent identifier handling and privacy parameters.
+  </Card>
+  
+  <Card title="Monitor Privacy Budget" icon="gauge-high">
+    Track privacy budget consumption across all panel matching operations. Implement alerts for budget depletion.
+  </Card>
+  
+  <Card title="Document Workflows" icon="file-lines">
+    Maintain clear documentation of exchange workflows, including privacy parameters and expected match rates.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Measurements" icon="chart-line" href="/guides/creating-measurements">
+    Use matched panels to create measurements
+  </Card>
+  
+  <Card title="Requisitions" icon="list-check" href="/guides/requisitions">
+    Understand how requisitions work with matched data
+  </Card>
+  
+  <Card title="Privacy & Security" icon="shield" href="/concepts/differential-privacy">
+    Learn more about privacy protection mechanisms
+  </Card>
+</CardGroup>

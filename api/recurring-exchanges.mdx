@@ -1,0 +1,60 @@
+---
+title: Recurring Exchanges
+description: Reference for Recurring Exchange resources
+---
+
+A recurring exchange is a Panel Matching exchange that happens between a DataProvider and a ModelProvider on some schedule. This is instantiated once per date in the schedule via Exchange resources.
+
+## Resource
+
+### RecurringExchange
+
+A Panel Matching exchange that happens between a DataProvider and a ModelProvider on some schedule.
+
+<ResponseField name="name" type="string" required>
+  Resource name with one of these patterns:
+  - `recurringExchanges/{recurring_exchange}`
+  - `dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}`
+  - `modelProviders/{model_provider}/recurringExchanges/{recurring_exchange}`
+</ResponseField>
+
+<ResponseField name="exchange_workflow" type="Any" required>
+  The ExchangeWorkflow for this RecurringExchange.
+  
+  The version of the ExchangeWorkflow message type must match the API version used to create this resource. This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="event_data_provider" type="string" required>
+  The DataProvider party.
+  
+  Format: `dataProviders/{data_provider}`
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="model_provider" type="string" required>
+  The ModelProvider party.
+  
+  Format: `modelProviders/{model_provider}`
+  
+  This field is immutable after creation.
+</ResponseField>
+
+<ResponseField name="state" type="State" output>
+  State of this RecurringExchange.
+  
+  **Enum values:**
+  - `STATE_UNSPECIFIED`: Default value used if the state is omitted
+  - `ACTIVE`: New Exchanges should be started according to the schedule
+  - `RETIRED`: New Exchanges will not be created
+</ResponseField>
+
+<ResponseField name="next_exchange_date" type="Date" required>
+  The date of the next Exchange.
+</ResponseField>
+
+## Notes
+
+RecurringExchange resources are typically managed by the system and created during setup. There is no public service API for creating or modifying RecurringExchanges directly. Instead, they are referenced by other resources like Exchanges and ExchangeSteps.
+
+The exchange workflow defines the sequence of steps that will be executed for each date in the schedule. See the [Exchange Workflows](/api/exchange-workflows) page for details on workflow structure.

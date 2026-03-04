@@ -1,0 +1,160 @@
+---
+title: Populations API
+description: API reference for managing Population resources
+---
+
+The Populations API allows you to create, retrieve, and list populations. A population is provided by a DataProvider and represents a set of individuals or entities.
+
+## Resource
+
+### Population
+
+A population provided by a `DataProvider`.
+
+<ResponseField name="name" type="string" required>
+  Resource name with pattern `dataProviders/{data_provider}/populations/{population}`
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The Population description.
+</ResponseField>
+
+<ResponseField name="create_time" type="Timestamp" output>
+  When the Population was created.
+</ResponseField>
+
+<ResponseField name="population_spec_ref" type="oneof" required>
+  Reference to the PopulationSpec. One of:
+  
+  <ResponseField name="population_blob" type="PopulationBlob">
+    (Deprecated) The blob for the population.
+    
+    This field is immutable after creation.
+    
+    <ResponseField name="population_blob.blob_uri" type="string" required>
+      A URI for the population blob.
+      
+      This must be unique across all Population resources for the parent DataProvider.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="population_spec" type="PopulationSpec">
+    The specification of this Population. Required for new resources.
+    
+    This must be unique across all Population resources for the parent DataProvider. This field is immutable after creation.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="event_template" type="EventTemplate">
+  (Deprecated) The EventTemplate that this population conforms to.
+  
+  The event templates can be determined from the PopulationSpec, as each attributes element corresponds to an event template.
+</ResponseField>
+
+## Methods
+
+### CreatePopulation
+
+Creates a new `Population`.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="population" type="Population" required>
+  The Population to create. The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - One of `population_blob` or `population_spec`
+</ParamField>
+
+<ParamField body="request_id" type="string">
+  Unique identifier for this request.
+  
+  Limited to 36 ASCII characters. This may be an RFC 4211 UUID. The request is only idempotent if this field is specified.
+</ParamField>
+
+**Response**
+
+Returns the created `Population` resource.
+
+**Example Request**
+
+```proto
+CreatePopulationRequest {
+  parent: "dataProviders/123"
+  population: {
+    description: "US adult population"
+    population_spec: {
+      // PopulationSpec fields
+    }
+  }
+  request_id: "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### GetPopulation
+
+Returns the `Population` with the specified resource key.
+
+<ParamField path="name" type="string" required>
+  Resource name of the Population to retrieve.
+  
+  Format: `dataProviders/{data_provider}/populations/{population}`
+</ParamField>
+
+**Response**
+
+Returns a `Population` resource.
+
+**Example Request**
+
+```proto
+GetPopulationRequest {
+  name: "dataProviders/123/populations/456"
+}
+```
+
+### ListPopulations
+
+Lists `Population` resources for a DataProvider.
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent DataProvider.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of Populations to return. The service may return fewer than this value.
+  
+  - If unspecified, at most 50 Populations will be returned
+  - Maximum value is 1000; values above 1000 will be coerced to 1000
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A page token received from a previous `ListPopulations` call. Provide this to retrieve the subsequent page.
+  
+  When paginating, all other parameters must match the call that provided the page token.
+</ParamField>
+
+**Response**
+
+<ResponseField name="populations" type="Population[]">
+  List of Population resources
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be sent as `page_token` to retrieve the next page. If omitted, there are no subsequent pages.
+</ResponseField>
+
+**Example Request**
+
+```proto
+ListPopulationsRequest {
+  parent: "dataProviders/123"
+  page_size: 50
+}
+```

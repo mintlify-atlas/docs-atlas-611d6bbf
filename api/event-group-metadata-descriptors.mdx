@@ -1,0 +1,409 @@
+---
+title: "Event Group Metadata Descriptors API"
+description: "Complete API reference for the EventGroupMetadataDescriptors service"
+---
+
+The EventGroupMetadataDescriptors service provides methods for managing metadata descriptor resources, which define the structure of EventGroup metadata.
+
+## Resource
+
+### EventGroupMetadataDescriptor
+
+The metadata message descriptor of an `EventGroup.Metadata`. This metadata is used to describe the contents of an `EventGroup` without needing a direct dependency on it.
+
+See Self-describing Messages: https://protobuf.dev/programming-guides/techniques/#self-description
+
+**Resource name pattern:** `dataProviders/{data_provider}/eventGroupMetadataDescriptors/{event_group_metadata_descriptor}`
+
+<ResponseField name="name" type="string" required>
+  Resource name identifier.
+</ResponseField>
+
+<ResponseField name="descriptor_set" type="FileDescriptorSet">
+  `FileDescriptorSet` including the `FileDescriptorProto` of the metadata message and the transitive closure of its dependencies.
+  
+  This may exclude `FileDescriptorProto`s for protobuf well-known types (see https://protobuf.dev/reference/protobuf/google.protobuf/).
+</ResponseField>
+
+## Methods
+
+### GetEventGroupMetadataDescriptor
+
+Returns the `EventGroupMetadataDescriptor` with the specified resource name.
+
+**Request**
+
+<ParamField path="name" type="string" required>
+  Resource name of the EventGroupMetadataDescriptor.
+  
+  Format: `dataProviders/{data_provider}/eventGroupMetadataDescriptors/{event_group_metadata_descriptor}`
+</ParamField>
+
+**Response**
+
+Returns an `EventGroupMetadataDescriptor` resource.
+
+**Example**
+
+```proto
+message GetEventGroupMetadataDescriptorRequest {
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**HTTP Binding**
+
+```
+GET /v2alpha/{name=dataProviders/*/eventGroupMetadataDescriptors/*}
+```
+
+---
+
+### CreateEventGroupMetadataDescriptor
+
+Creates (registers) a `EventGroupMetadataDescriptor` defined in the specified `DataProvider`'s system.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `DataProvider`.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="event_group_metadata_descriptor" type="EventGroupMetadataDescriptor" required>
+  The `EventGroupMetadataDescriptor` to create.
+  
+  The `name` field will be ignored, and the system will assign an ID.
+  
+  Required fields:
+  - `descriptor_set`: FileDescriptorSet containing the metadata message definition
+</ParamField>
+
+<ParamField body="request_id" type="string">
+  Unique identifier for this request.
+  
+  Using the protobuf type URL is recommended.
+  
+  If specified, the request will be idempotent. See https://google.aip.dev/155.
+</ParamField>
+
+**Response**
+
+Returns the created `EventGroupMetadataDescriptor` resource.
+
+**Example**
+
+```proto
+message CreateEventGroupMetadataDescriptorRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  EventGroupMetadataDescriptor event_group_metadata_descriptor = 2 [(google.api.field_behavior) = REQUIRED];
+  string request_id = 3;
+}
+```
+
+**Usage Notes**
+
+- The `descriptor_set` should include the complete type definition including all dependencies.
+- The `request_id` should ideally be the protobuf type URL for consistency.
+- The descriptor set enables self-describing metadata without compile-time dependencies.
+
+---
+
+### UpdateEventGroupMetadataDescriptor
+
+Updates an existing `EventGroupMetadataDescriptor`. Results in a `PERMISSION_DENIED` error if the authenticated user does not have access to the `EventGroupMetadataDescriptor`. Results in a `NOT_FOUND` error if the specified `EventGroupMetadataDescriptor` does not exist.
+
+**Request**
+
+<ParamField body="event_group_metadata_descriptor" type="EventGroupMetadataDescriptor" required>
+  The `EventGroupMetadataDescriptor` to update. The `name` field is used to identify the resource to update.
+  
+  Note: This is a full replacement update, not a partial update.
+</ParamField>
+
+**Response**
+
+Returns the updated `EventGroupMetadataDescriptor` resource.
+
+**Example**
+
+```proto
+message UpdateEventGroupMetadataDescriptorRequest {
+  EventGroupMetadataDescriptor event_group_metadata_descriptor = 1 [(google.api.field_behavior) = REQUIRED];
+}
+```
+
+**Usage Notes**
+
+- This performs a full replacement update.
+- Partial updates are not supported.
+- The `name` field identifies which descriptor to update.
+- Use this to update the descriptor set when your metadata schema changes.
+
+---
+
+### BatchGetEventGroupMetadataDescriptors
+
+Batch gets `EventGroupMetadataDescriptors`. Results in a `NOT_FOUND` error if any of the specified `EventGroupMetadataDescriptor`s does not exist.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `DataProvider`.
+  
+  Format: `dataProviders/{data_provider}`
+</ParamField>
+
+<ParamField body="names" type="string[]" required>
+  The resource names of `EventGroupMetadataDescriptor`s to retrieve.
+</ParamField>
+
+**Response**
+
+<ResponseField name="event_group_metadata_descriptors" type="EventGroupMetadataDescriptor[]">
+  The `EventGroupMetadataDescriptor` resources.
+</ResponseField>
+
+**Example**
+
+```proto
+message BatchGetEventGroupMetadataDescriptorsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  repeated string names = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+message BatchGetEventGroupMetadataDescriptorsResponse {
+  repeated EventGroupMetadataDescriptor event_group_metadata_descriptors = 1;
+}
+```
+
+**HTTP Binding**
+
+```
+GET /v2alpha/{parent=dataProviders/*}/eventGroupMetadataDescriptors:batchGet
+```
+
+---
+
+### ListEventGroupMetadataDescriptors
+
+Lists `EventGroupMetadataDescriptor`s. Results in a `PERMISSION_DENIED` error if attempting to list `EventGroupMetadataDescriptor`s that the authenticated user does not have access to.
+
+**Request**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `DataProvider`. The wildcard ID (`-`) may be used in place of the `DataProvider` ID to list across `DataProvider`s.
+  
+  Formats:
+  - `dataProviders/{data_provider}` - List for specific DataProvider
+  - `dataProviders/-` - List across all DataProviders
+</ParamField>
+
+<ParamField query="page_size" type="int32">
+  The maximum number of `EventGroupMetadataDescriptor`s to return. The service may return fewer than this value.
+  
+  If unspecified, at most 50 `EventGroupMetadataDescriptor`s will be returned. The maximum value is 1000; values above 1000 will be coerced to 1000.
+</ParamField>
+
+<ParamField query="page_token" type="string">
+  A token from a previous call, specified to retrieve the next page. See https://aip.dev/158.
+</ParamField>
+
+**Response**
+
+<ResponseField name="event_group_metadata_descriptors" type="EventGroupMetadataDescriptor[]">
+  The `EventGroupMetadataDescriptor` resources.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be specified in a subsequent call to retrieve the next page. See https://aip.dev/158.
+</ResponseField>
+
+**Example**
+
+```proto
+message ListEventGroupMetadataDescriptorsRequest {
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListEventGroupMetadataDescriptorsResponse {
+  repeated EventGroupMetadataDescriptor event_group_metadata_descriptors = 1;
+  string next_page_token = 2;
+}
+```
+
+## Self-Describing Metadata
+
+### Concept
+
+EventGroupMetadataDescriptors enable self-describing metadata using Protocol Buffers' descriptor mechanism. This allows metadata to be understood without compile-time dependencies on the metadata types.
+
+### FileDescriptorSet
+
+The `descriptor_set` field contains a `FileDescriptorSet` which includes:
+
+1. **Message Descriptor**: The `FileDescriptorProto` containing your metadata message definition
+2. **Dependencies**: All transitive dependencies of your message
+3. **Exclusions**: Well-known types may be excluded as they're universally available
+
+### Creating a Descriptor Set
+
+To create a `FileDescriptorSet` for your metadata:
+
+```bash
+# Compile your .proto file with descriptor_set_out
+protoc --descriptor_set_out=metadata_descriptor.pb \
+       --include_imports \
+       your_metadata.proto
+```
+
+The `--include_imports` flag ensures all dependencies are included.
+
+### Using Descriptors
+
+Consumers of the metadata can:
+
+1. Fetch the `EventGroupMetadataDescriptor`
+2. Extract the `descriptor_set`
+3. Use reflection APIs to parse and understand the metadata
+4. No compile-time dependency on the metadata schema required
+
+## Workflow
+
+### Defining Metadata Schema
+
+1. **Design Schema**: Create a `.proto` file defining your metadata structure:
+
+```proto
+syntax = "proto3";
+
+package com.example.metadata;
+
+message CampaignMetadata {
+  string campaign_id = 1;
+  string campaign_name = 2;
+  string advertiser = 3;
+  repeated string creative_ids = 4;
+}
+```
+
+2. **Generate Descriptor**: Compile with `--descriptor_set_out`:
+
+```bash
+protoc --descriptor_set_out=campaign_metadata.pb \
+       --include_imports \
+       campaign_metadata.proto
+```
+
+3. **Load Descriptor**: Read the generated `.pb` file into a `FileDescriptorSet`.
+
+4. **Create Descriptor Resource**: Call `CreateEventGroupMetadataDescriptor` with the descriptor set.
+
+### Registering Descriptors
+
+1. **One Per Schema**: Create one descriptor per unique metadata schema.
+2. **Use Type URL as Request ID**: The protobuf type URL (e.g., `type.googleapis.com/com.example.metadata.CampaignMetadata`) makes a good `request_id`.
+3. **Store Reference**: Save the returned resource name for use in EventGroups.
+
+### Using Descriptors with EventGroups
+
+When creating an `EventGroup`:
+
+1. **Reference Descriptor**: Set `event_group_metadata_descriptor` to the descriptor resource name.
+2. **Provide Metadata**: Include the actual metadata message in the `metadata` field.
+3. **Type Matching**: The metadata must match the type defined in the descriptor.
+
+### Updating Schemas
+
+1. **Version Control**: Maintain backward compatibility when updating schemas.
+2. **Create New Descriptor**: For breaking changes, create a new descriptor instead of updating.
+3. **Update Descriptor**: For compatible changes, update the existing descriptor.
+4. **Migrate EventGroups**: Update EventGroups to reference the new descriptor.
+
+## Best Practices
+
+### Schema Design
+
+- **Backward Compatibility**: Use field numbers that won't conflict with future additions.
+- **Optional Fields**: Make fields optional when possible for flexibility.
+- **Documentation**: Include comments in your `.proto` files.
+- **Namespacing**: Use package names to avoid type collisions.
+
+### Descriptor Management
+
+- **Versioning**: Include version information in your schema if needed.
+- **Dependencies**: Minimize external dependencies for simpler descriptor sets.
+- **Well-Known Types**: Leverage protobuf well-known types (they can be excluded from the descriptor set).
+- **Testing**: Validate descriptor sets can be deserialized correctly.
+
+### Cross-Provider Compatibility
+
+- **Standard Schemas**: Consider using common schemas across DataProviders.
+- **List Across Providers**: Use `dataProviders/-` to discover all available descriptors.
+- **Batch Operations**: Use batch get for efficient retrieval of multiple descriptors.
+- **Caching**: Cache descriptors as they rarely change.
+
+### Error Handling
+
+- **Validation**: Validate descriptor sets before creating resources.
+- **Idempotency**: Use `request_id` to make creation idempotent.
+- **Type Checking**: Ensure EventGroup metadata matches the referenced descriptor.
+- **Not Found**: Handle cases where descriptors may have been deleted.
+
+## Integration Examples
+
+### Creating a Descriptor and EventGroup
+
+```proto
+// 1. Create the descriptor
+CreateEventGroupMetadataDescriptorRequest {
+  parent: "dataProviders/123"
+  event_group_metadata_descriptor: {
+    descriptor_set: <loaded from campaign_metadata.pb>
+  }
+  request_id: "type.googleapis.com/com.example.metadata.CampaignMetadata"
+}
+
+// Response includes name: "dataProviders/123/eventGroupMetadataDescriptors/456"
+
+// 2. Create EventGroup referencing the descriptor
+CreateEventGroupRequest {
+  parent: "dataProviders/123"
+  event_group: {
+    measurement_consumer: "measurementConsumers/789"
+    encrypted_metadata: {
+      metadata: {
+        event_group_metadata_descriptor: "dataProviders/123/eventGroupMetadataDescriptors/456"
+        metadata: <packed CampaignMetadata message>
+      }
+    }
+    // ... other fields
+  }
+}
+```
+
+### Discovering and Using Descriptors
+
+```proto
+// 1. List all descriptors across providers
+ListEventGroupMetadataDescriptorsRequest {
+  parent: "dataProviders/-"
+}
+
+// 2. Get specific descriptors
+BatchGetEventGroupMetadataDescriptorsRequest {
+  parent: "dataProviders/123"
+  names: [
+    "dataProviders/123/eventGroupMetadataDescriptors/456",
+    "dataProviders/123/eventGroupMetadataDescriptors/789"
+  ]
+}
+
+// 3. Use reflection to parse metadata
+// Load descriptor set
+// Create dynamic message from descriptor
+// Parse metadata from EventGroup
+```

@@ -1,0 +1,90 @@
+---
+title: "API Overview"
+description: "Overview of the Cross-Media Measurement API v2alpha"
+---
+
+The Cross-Media Measurement API provides a comprehensive set of services for managing measurements, accounts, authentication, and cryptographic resources.
+
+## API Services
+
+The v2alpha API includes the following core services:
+
+### Account Management
+
+- **[Accounts](/api/accounts)** - User account registration, activation, and identity management
+- **[API Keys](/api/api-keys)** - Revocable authentication keys for API access
+
+### Security & Cryptography
+
+- **[Certificates](/api/certificates)** - X.509 certificate management and revocation
+- **[Public Keys](/api/public-keys)** - Encryption public key management
+
+## Resource Patterns
+
+The API follows resource-oriented design principles with standard resource name patterns:
+
+- Accounts: `accounts/{account}`
+- API Keys: `measurementConsumers/{measurement_consumer}/apiKeys/{api_key}`
+- Certificates: `{parent}/certificates/{certificate}` where parent can be:
+  - `dataProviders/{data_provider}`
+  - `duchies/{duchy}`
+  - `measurementConsumers/{measurement_consumer}`
+  - `modelProviders/{model_provider}`
+- Public Keys: `{parent}/publicKey` where parent can be:
+  - `dataProviders/{data_provider}`
+  - `measurementConsumers/{measurement_consumer}`
+
+## Authentication
+
+The API supports authentication through:
+
+1. **API Keys** - Created via the API Keys service for programmatic access
+2. **OpenID Connect** - For user authentication with OIDC providers
+
+## Common Patterns
+
+### Pagination
+
+List methods support pagination using `page_size` and `page_token` parameters:
+
+```proto
+message ListRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListResponse {
+  repeated Resource resources = 1;
+  string next_page_token = 2;
+}
+```
+
+### Field Behavior
+
+Fields are annotated with behavior constraints:
+
+- `REQUIRED` - Must be provided in requests
+- `OUTPUT_ONLY` - Only returned in responses, ignored in requests
+- `IMMUTABLE` - Can only be set on creation
+- `IDENTIFIER` - Resource name field
+
+### Error Handling
+
+The API returns standard gRPC status codes:
+
+- `PERMISSION_DENIED` - Caller lacks permission for the operation
+- `NOT_FOUND` - Resource not found
+- `ALREADY_EXISTS` - Resource already exists
+- `INVALID_ARGUMENT` - Invalid request parameters
+- `FAILED_PRECONDITION` - Operation rejected due to system state
+
+## Protocol Buffers
+
+All API methods use Protocol Buffers (proto3) for request and response messages. The Java package is `org.wfanet.measurement.api.v2alpha`.
+
+## Next Steps
+
+- Review the [Accounts API](/api/accounts) for user management
+- Learn about [API Keys](/api/api-keys) for authentication
+- Understand [Certificate management](/api/certificates)
+- Explore [Public Key](/api/public-keys) encryption
