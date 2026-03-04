@@ -72,6 +72,7 @@
             "group": "Identity & Access",
             "pages": [
               "api/accounts",
+              "api/client-accounts",
               "api/api-keys",
               "api/certificates",
               "api/public-keys"

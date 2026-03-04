@@ -1,0 +1,277 @@
+---
+title: "Client Accounts"
+description: "Manage client accounts that link MeasurementConsumers to DataProvider ecosystems"
+---
+
+## Overview
+
+The `ClientAccounts` service manages client account resources that represent a MeasurementConsumer's identity within a DataProvider's ecosystem. These resources enable EventGroup registration within the EDP Aggregator by providing a mapping between MeasurementConsumer IDs and DataProvider-specific account references.
+
+## Resource
+
+### ClientAccount
+
+A `ClientAccount` belongs to a `MeasurementConsumer` within a `DataProvider`'s ecosystem. Each account is owned and managed by the operator on behalf of the MeasurementConsumer.
+
+```protobuf
+message ClientAccount {
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/ClientAccount"
+    pattern: "measurementConsumers/{measurement_consumer}/clientAccounts/{client_account}"
+    pattern: "dataProviders/{data_provider}/clientAccounts/{client_account}"
+  };
+
+  string name = 1;
+  string data_provider = 2;
+  string client_account_reference_id = 3;
+}
+```
+
+<ParamField path="name" type="string" required>
+  Resource name following the pattern:
+  `measurementConsumers/{measurement_consumer}/clientAccounts/{client_account}`
+</ParamField>
+
+<ParamField path="data_provider" type="string" required>
+  Resource name of the `DataProvider` whose ecosystem this account exists within.
+  
+  **Immutable** - Cannot be changed after creation.
+</ParamField>
+
+<ParamField path="client_account_reference_id" type="string" required>
+  Reference ID for the account in the DataProvider's ecosystem. Must not exceed 36 characters.
+  
+  The combination of `data_provider` and `client_account_reference_id` must be unique.
+</ParamField>
+
+<Note>
+A given MeasurementConsumer may have more than one ClientAccount for the same DataProvider.
+</Note>
+
+## Methods
+
+### CreateClientAccount
+
+Creates a new `ClientAccount`.
+
+**Request:**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+  
+  Format: `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField path="client_account" type="ClientAccount" required>
+  The ClientAccount to create. The `name` field will be ignored, and the system will assign an ID.
+</ParamField>
+
+**Response:**
+
+Returns the created `ClientAccount` resource.
+
+**Example:**
+
+```protobuf
+request {
+  parent: "measurementConsumers/123"
+  client_account: {
+    data_provider: "dataProviders/456"
+    client_account_reference_id: "client-abc-123"
+  }
+}
+```
+
+### BatchCreateClientAccounts
+
+Batch creates `ClientAccount`s. Results in an error if any of the specified accounts fail to be created.
+
+**Request:**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent `MeasurementConsumer`.
+</ParamField>
+
+<ParamField path="requests" type="CreateClientAccountRequest[]" required>
+  The requests specifying the ClientAccounts to create. A maximum of 1000 accounts can be created in a single batch.
+  
+  Either all requests must have the same parent (matching the top-level parent), or all requests must leave the parent unset.
+</ParamField>
+
+**Response:**
+
+```protobuf
+message BatchCreateClientAccountsResponse {
+  repeated ClientAccount client_accounts = 1;
+}
+```
+
+### GetClientAccount
+
+Returns the `ClientAccount` with the specified resource name.
+
+**Request:**
+
+<ParamField path="name" type="string" required>
+  Resource name of the ClientAccount to retrieve.
+  
+  Format: `measurementConsumers/{measurement_consumer}/clientAccounts/{client_account}`
+</ParamField>
+
+**Response:**
+
+Returns the `ClientAccount` resource.
+
+### ListClientAccounts
+
+Lists `ClientAccount`s for a parent resource.
+
+**Request:**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent.
+  
+  Format: `dataProviders/{data_provider}` or `measurementConsumers/{measurement_consumer}`
+</ParamField>
+
+<ParamField path="page_size" type="int32">
+  The maximum number of resources to return. The service may return fewer than this value.
+  
+  If unspecified, at most 50 resources will be returned. The maximum value is 1000; values above this will be coerced to the maximum.
+</ParamField>
+
+<ParamField path="page_token" type="string">
+  A token from a previous call, specified to retrieve the next page.
+</ParamField>
+
+<ParamField path="filter" type="Filter">
+  Filter criteria for this request. Each field represents a term in a conjunction.
+  
+  <Expandable title="Filter fields">
+    <ParamField path="measurement_consumer" type="string">
+      Resource name of the MeasurementConsumer to filter by.
+    </ParamField>
+    
+    <ParamField path="data_provider" type="string">
+      Resource name of the DataProvider to filter by.
+    </ParamField>
+    
+    <ParamField path="client_account_reference_id" type="string">
+      Reference ID for the account in the DataProvider's ecosystem. Must not exceed 36 characters.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Response:**
+
+<ResponseField name="client_accounts" type="ClientAccount[]">
+  The ClientAccount resources.
+</ResponseField>
+
+<ResponseField name="next_page_token" type="string">
+  A token that can be specified in a subsequent call to retrieve the next page.
+</ResponseField>
+
+### DeleteClientAccount
+
+Deletes an existing `ClientAccount`.
+
+**Request:**
+
+<ParamField path="name" type="string" required>
+  Resource name of the ClientAccount to delete.
+  
+  Format: `measurementConsumers/{measurement_consumer}/clientAccounts/{client_account}`
+</ParamField>
+
+**Response:**
+
+Returns empty on success.
+
+### BatchDeleteClientAccounts
+
+Batch deletes `ClientAccount`s. Results in an error if any of the specified accounts fail to be deleted.
+
+**Request:**
+
+<ParamField path="parent" type="string" required>
+  Resource name of the parent MeasurementConsumer.
+</ParamField>
+
+<ParamField path="names" type="string[]" required>
+  The resource names of the ClientAccounts to delete. A maximum of 1000 accounts can be deleted in a single batch.
+</ParamField>
+
+**Response:**
+
+Returns empty on success.
+
+## Usage Examples
+
+### Creating a Client Account
+
+```protobuf
+// Create a client account linking a MeasurementConsumer to a DataProvider
+CreateClientAccountRequest {
+  parent: "measurementConsumers/123"
+  client_account: {
+    data_provider: "dataProviders/456"
+    client_account_reference_id: "mc-123-dp-456"
+  }
+}
+```
+
+### Listing Client Accounts
+
+```protobuf
+// List all client accounts for a MeasurementConsumer
+ListClientAccountsRequest {
+  parent: "measurementConsumers/123"
+  page_size: 50
+}
+
+// List client accounts filtered by DataProvider
+ListClientAccountsRequest {
+  parent: "measurementConsumers/123"
+  filter: {
+    data_provider: "dataProviders/456"
+  }
+}
+```
+
+### Batch Operations
+
+```protobuf
+// Batch create multiple client accounts
+BatchCreateClientAccountsRequest {
+  parent: "measurementConsumers/123"
+  requests: [
+    {
+      client_account: {
+        data_provider: "dataProviders/456"
+        client_account_reference_id: "ref-1"
+      }
+    },
+    {
+      client_account: {
+        data_provider: "dataProviders/789"
+        client_account_reference_id: "ref-2"
+      }
+    }
+  ]
+}
+```
+
+## Best Practices
+
+<Card title="Unique Reference IDs" icon="fingerprint">
+  Ensure that the combination of `data_provider` and `client_account_reference_id` is unique across all ClientAccounts for a given MeasurementConsumer.
+</Card>
+
+<Card title="Reference ID Management" icon="key">
+  The `reference_id` should be known by the DataProvider and shared with the operator out of band. Keep these IDs under 36 characters.
+</Card>
+
+<Card title="Batch Operations" icon="layer-group">
+  Use batch operations when creating or deleting multiple ClientAccounts to improve performance. Maximum batch size is 1000 accounts.
+</Card>
